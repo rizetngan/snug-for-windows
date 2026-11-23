@@ -12,6 +12,21 @@ Snug enhances display and touch interaction for UU Remote. This community contri
 4. Enable Screenshot in desktop Settings (off by default). Tap the camera when a window is placed; tap the thumbnail to crop and copy the result to the host clipboard.
 5. The SYSTEM monitor observes UU's display-capture lifecycle and sends only fixed state metadata to Snug through a local one-way pipe. It can confirm capture activity, not the controller's device type or physical monitor identity. If the monitor starts late or loses ETW events, Snug deliberately falls back to unknown/compatibility mode instead of inventing a disconnected state.
 
+## PowerShell / AI Agent installation
+
+Paste the following into **Windows PowerShell** to install the latest stable release:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $env:TEMP 'install-snug.ps1'
+Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/rizetngan/snug-for-windows/main/scripts/install-windows.ps1' -OutFile $script
+& $script
+```
+
+The script verifies the release's SHA-256, asks you to disconnect UU Remote before installation, and prompts for administrator approval when running the official installer. **Prefer an AI Agent?** [Copy the full Agent installation prompt](../../README.en.md#install-with-an-ai-agent).
+
+Installer source: [scripts/install-windows.ps1](../../scripts/install-windows.ps1). To verify without installing, run `& $script -DownloadOnly`.
+
 ## Build and package
 
 Requirements: Windows x64 (Windows 10 22H2 tested), .NET SDK 10.0.404 (latest patch in its feature band allowed), NuGet connectivity. Packaging additionally requires Windows Desktop Runtime 10.0.15 and Inno Setup 7. Build and unit tests do not need administrator rights.
