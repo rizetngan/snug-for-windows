@@ -36,6 +36,21 @@ Snug for Windows 是 [Snug](https://github.com/zephyr4123/snug) 的独立社区 
 
 已知问题：UU iOS 端键盘收起后直接再次弹出，可能无法自动避让输入框；普通电脑屏幕也可复现。重新点击输入框后再调起键盘可恢复适配。
 
+## PowerShell 安装
+
+在 **Windows PowerShell** 中复制执行：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $env:TEMP 'install-snug.ps1'
+Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/rizetngan/snug-for-windows/main/scripts/install-windows.ps1' -OutFile $script
+& $script
+```
+
+脚本自动下载最新稳定版安装器并验证 SHA-256，随后要求你确认已断开 UU 远程连接，才会打开官方安装程序。安装器包含签名虚拟显示驱动和捕获监视任务，需要 Windows 管理员授权；脚本不会擅自断开 UU、重启服务或关闭系统安全防护。
+
+[查看 PowerShell 安装脚本](scripts/install-windows.ps1)。仅下载并校验而不安装：将最后一行改为 `& $script -DownloadOnly`。
+
 ## 使用 Agent 安装
 
 将以下整段指令复制给能够操作 Windows 电脑的 Agent，即可按正式版安装流程执行：
