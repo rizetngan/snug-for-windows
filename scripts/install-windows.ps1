@@ -9,7 +9,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or
 }
 
 $repo = 'rizetngan/snug-for-windows'
-$release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers @{ 'User-Agent' = 'Snug-Installer' }
+$release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -TimeoutSec 45 -Headers @{ 'User-Agent' = 'Snug-Installer' }
 if ($release.draft -or $release.prerelease) { throw 'Only stable releases are supported.' }
 $installers = @($release.assets | Where-Object { $_.name -match '^Snug-Setup-[0-9.]+-x64\.exe$' })
 $checksums = @($release.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' })
@@ -19,8 +19,9 @@ $downloads = Join-Path $env:USERPROFILE 'Downloads'
 New-Item -ItemType Directory -Path $downloads -Force | Out-Null
 $installer = Join-Path $downloads $installers[0].name
 $sums = Join-Path $downloads 'Snug-SHA256SUMS.txt'
-Invoke-WebRequest -UseBasicParsing -Uri $installers[0].browser_download_url -OutFile $installer
-Invoke-WebRequest -UseBasicParsing -Uri $checksums[0].browser_download_url -OutFile $sums
+Write-Host "Downloading $($installers[0].name)..."
+Invoke-WebRequest -UseBasicParsing -TimeoutSec 360 -Uri $installers[0].browser_download_url -OutFile $installer
+Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri $checksums[0].browser_download_url -OutFile $sums
 
 $expected = @(
     Get-Content -LiteralPath $sums | ForEach-Object {
