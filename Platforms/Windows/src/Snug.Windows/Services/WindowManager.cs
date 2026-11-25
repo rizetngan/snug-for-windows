@@ -340,6 +340,35 @@ public sealed class WindowManager
             && !NativeMethods.IsHungAppWindow(handle)
             && NativeMethods.PostMessage(handle, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
     }
+    // Browser zoom is per site in Chromium. Only apply on an explicit user
+    // command, never when moving/restoring a browser window. Ctrl+0 resets
+    // the current page, then real native zoom stops yield a known percentage.
+    public bool ApplyBrowserZoom(WindowInfo window, int levelIndex)
+    {
+        if (!BrowserZoomLevels.IsBrowser(window.ExecutablePath, window.AppName)
+            || !IsResponsive(window.Key) || !Focus(window.Key)) return false;
+
+        const byte control = 0x11;
+        const uint keyUp = 0x0002;
+        void Key(byte key)
+        {
+            KeyboardNativeMethods.keybd_event(control, 0, 0, UIntPtr.Zero);
+            KeyboardNativeMethods.keybd_event(key, 0, 0, UIntPtr.Zero);
+            KeyboardNativeMethods.keybd_event(key, 0, keyUp, UIntPtr.Zero);
+            KeyboardNativeMethods.keybd_event(control, 0, keyUp, UIntPtr.Zero);
+        }
+        Key(0x30); // Ctrl+0
+        Thread.Sleep(65);
+        var steps = BrowserZoomLevels.StepsFromDefault(levelIndex);
+        var key = steps > 0 ? (byte)0xBB : (byte)0xBD;
+        for (int i = 0; i < Math.Abs(steps); i++)
+        {
+            Key(key);
+            Thread.Sleep(65);
+        }
+        return true;
+    }
+
     public bool Zoom(WindowInfo window, int steps)
     {
         if (steps == 0) return true;

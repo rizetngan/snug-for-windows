@@ -24,6 +24,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private readonly UuSessionDetector _uuDetector = new();
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
+    private readonly PhoneDisplayHold _displayHold = new();
+    private int _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
+    private bool _browserZoomKnown;
     private readonly Screenshots _screenshots = new(new WindowScreenshotService());
     private ScreenshotPanelWindow? _screenshotPanel;
     private readonly VddDriverClient _driver = new();
@@ -1142,6 +1145,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             });
 
             _placed = record;
+            _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
+            _browserZoomKnown = false;
             if (!await FitMovedWindowAsync(window))
             {
                 await PutBackAsync();
@@ -1258,6 +1263,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _askingDialogKey = null;
         ActivityStatus = result.Message;
         _homeBar?.Hide();
+        _homeBar?.SetBrowserZoomVisible(false, null);
+        _browserZoomKnown = false;
         _appBackBar?.Hide();
         if (result.Restored) _placedModeWidth = new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth;
         if (_phoneSurface is { IsVisible: false } && _phoneDisplay is not null) _phoneSurface.Show();
@@ -1279,6 +1286,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PlacedWindowKey));
         OnPropertyChanged(nameof(PlacedAppName));
         _homeBar?.Hide();
+        _homeBar?.SetBrowserZoomVisible(false, null);
         _appBackBar?.Hide();
         if (_phoneSurface is { IsVisible: false }) _phoneSurface.Show();
         SyncGestures();
@@ -1327,6 +1335,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary;
         var transitions = _connection.Update(signals, now);
         var wantsPhoneScreen = _connection.WantsPhoneScreen(now);
+        var keepPhoneDisplay = _displayHold.ShouldKeep(
+            wantsPhoneScreen || (_connection.IsConnected && _phoneDisplay is not null),
+            PhoneScreenEnabled, _phoneDisplay is not null, now);
+        if (transitions.Count > 0 && _phoneDisplay is not null) SyncGestures();
         if (transitions.Count > 0 || now - _lastAcceptanceAuditAt >= TimeSpan.FromSeconds(1))
         {
             UuCaptureAcceptanceAudit.Record("SessionState", new
@@ -1347,6 +1359,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 creatingSession = _creatingSession,
                 phoneDisplay = _phoneDisplay is not null,
                 placedWindow = _placed is not null,
+                heldPhoneDisplay = _displayHold.IsPaused,
                 snugDisplay = _displayEnumerator.FindSnugDisplay() is not null,
                 driverManaged = _driver.IsManagedBySnug
             });
@@ -1364,6 +1377,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             UuEvidenceKind.Session => "UU 已连接 · 设备未知",
             _ => "UU 兼容模式 · 设备未知"
         };
+        if (_displayHold.IsPaused && keepPhoneDisplay)
+            ConnectionStatus = "UU 已暂停 · 手机屏保留";
 
         if (now - _lastDisplayScan > TimeSpan.FromSeconds(2))
         {
@@ -1389,7 +1404,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _ = RefreshDriverStatusAsync();
         }
 
-        var keepPhoneDisplay = PhoneSessionPresentation.ShouldKeepDisplay(wantsPhoneScreen, PhoneScreenEnabled);
         if (keepPhoneDisplay)
         {
             if (_phoneDisplay is null && !_creatingSession && !_endingSession) _ = StartPhoneSessionAsync();
@@ -1549,6 +1563,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         if (_screenshots.IsCropping) return;
         _homeBar ??= new HomeBarWindow(this);
+        var record = _placed ?? _ledger.Load();
+        _homeBar.SetBrowserZoomVisible(record is not null &&
+            BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName),
+            _browserZoomKnown ? _browserZoomIndex : null);
         _homeBar.SetCameraVisible(ScreenshotEnabled);
         _homeBar.PlaceOn(display);
         _homeBar.Show();
@@ -1560,6 +1578,25 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _appBackBar.SetApp(appName, canZoom, zoomSteps);
         _appBackBar.PlaceOn(display);
         _appBackBar.Show();
+    }
+
+    public void SetCurrentBrowserZoomIndex(int index)
+    {
+        var record = _placed ?? _ledger.Load();
+        if (record is null || _phoneDisplay is null || _showingPhoneList
+            || !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return;
+        index = BrowserZoomLevels.ClampIndex(index);
+        var browser = new WindowInfo(record.Key, record.AppName, string.Empty,
+            record.ExecutablePath, false, false);
+        if (!_windowManager.ApplyBrowserZoom(browser, index))
+        {
+            ActivityStatus = "浏览器未响应缩放操作";
+            return;
+        }
+        _browserZoomIndex = index;
+        _browserZoomKnown = true;
+        _homeBar?.SetBrowserZoomVisible(true, index);
+        ActivityStatus = $"网页缩放 {BrowserZoomLevels.PercentAt(index)}%";
     }
 
     public void AdjustCurrentAppZoom(int delta)
@@ -1607,6 +1644,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private async Task EndPhoneSessionAsync()
     {
         if (_endingSession) return;
+        _displayHold.Reset();
         _endingSession = true;
         UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "begin", connected = _connection.IsConnected, wantsPhoneScreen = _connection.WantsPhoneScreen(DateTimeOffset.UtcNow), dismissed = false, phoneScreenEnabled = PhoneScreenEnabled, placedWindow = _placed is not null, phoneDisplay = _phoneDisplay is not null });
         await PutBackAsync();
