@@ -5,13 +5,7 @@
         ShowActivated="False" Topmost="True" AllowsTransparency="True"
         Background="Transparent" Foreground="#F7F8FA" FontFamily="Segoe UI"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
-        PreviewMouseLeftButtonDown="WindowMouseDown"
-        PreviewMouseLeftButtonUp="WindowMouseUp"
-        PreviewMouseMove="WindowMouseMove"
-        PreviewTouchDown="WindowTouchDown"
-        PreviewTouchUp="WindowTouchUp"
-        PreviewTouchMove="WindowTouchMove">
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Grid>
         <Border x:Name="CompactBody" Background="#232730" CornerRadius="15">
             <Button x:Name="ExpandButton" Click="Expand_Click" Padding="2,8"
@@ -64,6 +58,17 @@
                             <Ellipse Width="5" Height="5" Fill="#30394A"/>
                         </Border>
                     </Canvas>
+
+                    <!-- 透明输入层覆盖整个轨道；滑块仅作视觉指示，不参与命中测试。 -->
+                    <Border x:Name="TrackInputSurface" Panel.ZIndex="10"
+                            Background="#01000000" IsHitTestVisible="True"
+                            Cursor="SizeNS"
+                            PreviewMouseLeftButtonDown="TrackMouseDown"
+                            PreviewMouseLeftButtonUp="TrackMouseUp"
+                            PreviewMouseMove="TrackMouseMove"
+                            PreviewTouchDown="TrackTouchDown"
+                            PreviewTouchUp="TrackTouchUp"
+                            PreviewTouchMove="TrackTouchMove"/>
                 </Grid>
 
                 <Button x:Name="ResetButton" Grid.Row="2" Click="Reset_Click"

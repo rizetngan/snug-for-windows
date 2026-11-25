@@ -193,11 +193,6 @@ public partial class ZoomRailWindow : Window
                 (IsVisible ? NativeMethods.SWP_SHOWWINDOW : 0));
     }
 
-    private bool TryGetTrackPoint(Point point) =>
-        _expanded && TrackHitArea.IsVisible
-        && point.X >= 0 && point.X <= TrackHitArea.ActualWidth
-        && point.Y >= 0 && point.Y <= TrackHitArea.ActualHeight;
-
     private void UpdateFromTrack(Point point)
     {
         const double thumbInset = 16;
@@ -238,7 +233,7 @@ public partial class ZoomRailWindow : Window
         _dragging = false;
         _dragProgress = null;
         UpdateTrackVisual();
-        if (Mouse.Captured == TrackHitArea) Mouse.Capture(null);
+        if (Mouse.Captured == TrackInputSurface) Mouse.Capture(null);
         _capturedTouchDevice?.Capture(null);
         _capturedTouchDevice = null;
         CommitSelected();
@@ -248,7 +243,7 @@ public partial class ZoomRailWindow : Window
     {
         _dragging = false;
         _dragProgress = null;
-        if (Mouse.Captured == TrackHitArea) Mouse.Capture(null);
+        if (Mouse.Captured == TrackInputSurface) Mouse.Capture(null);
         _capturedTouchDevice?.Capture(null);
         _capturedTouchDevice = null;
     }
@@ -296,26 +291,31 @@ public partial class ZoomRailWindow : Window
             Math.Clamp(centerY - thumbHeight / 2, 0, TrackCanvas.ActualHeight - thumbHeight));
     }
 
-    private void WindowMouseDown(object sender, MouseButtonEventArgs e)
+    // 输入事件直接绑定到覆盖整个轨道的透明层，避免只有视觉滑块接收命中。
+    private void TrackMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton != MouseButton.Left) return;
-        _swipeStartX = e.GetPosition(this).X;
-        if (!TryGetTrackPoint(e.GetPosition(TrackHitArea))) return;
+        if (e.ChangedButton != MouseButton.Left || !_expanded) return;
 
+        _swipeStartX = e.GetPosition(this).X;
         _dragging = true;
-        TrackHitArea.CaptureMouse();
+        if (!Mouse.Capture(TrackInputSurface, CaptureMode.SubTree))
+        {
+            _dragging = false;
+            return;
+        }
+
         UpdateFromTrack(e.GetPosition(TrackHitArea));
         e.Handled = true;
     }
 
-    private void WindowMouseMove(object sender, MouseEventArgs e)
+    private void TrackMouseMove(object sender, MouseEventArgs e)
     {
         if (!_dragging || e.LeftButton != MouseButtonState.Pressed) return;
         UpdateFromTrack(e.GetPosition(TrackHitArea));
         e.Handled = true;
     }
 
-    private void WindowMouseUp(object sender, MouseButtonEventArgs e)
+    private void TrackMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left) return;
         if (_dragging)
@@ -327,27 +327,31 @@ public partial class ZoomRailWindow : Window
         CheckSwipe(e.GetPosition(this).X);
     }
 
-    private void WindowTouchDown(object sender, TouchEventArgs e)
+    private void TrackTouchDown(object sender, TouchEventArgs e)
     {
+        if (!_expanded) return;
+
         _swipeStartX = e.GetTouchPoint(this).Position.X;
-        var point = e.GetTouchPoint(TrackHitArea).Position;
-        if (!TryGetTrackPoint(point)) return;
+        _capturedTouchDevice = e.TouchDevice;
+        if (!e.TouchDevice.Capture(TrackInputSurface))
+        {
+            _capturedTouchDevice = null;
+            return;
+        }
 
         _dragging = true;
-        _capturedTouchDevice = e.TouchDevice;
-        e.TouchDevice.Capture(TrackHitArea);
-        UpdateFromTrack(point);
+        UpdateFromTrack(e.GetTouchPoint(TrackHitArea).Position);
         e.Handled = true;
     }
 
-    private void WindowTouchMove(object sender, TouchEventArgs e)
+    private void TrackTouchMove(object sender, TouchEventArgs e)
     {
         if (!_dragging || _capturedTouchDevice != e.TouchDevice) return;
         UpdateFromTrack(e.GetTouchPoint(TrackHitArea).Position);
         e.Handled = true;
     }
 
-    private void WindowTouchUp(object sender, TouchEventArgs e)
+    private void TrackTouchUp(object sender, TouchEventArgs e)
     {
         if (_dragging && _capturedTouchDevice == e.TouchDevice)
         {

@@ -1,7 +1,7 @@
 ## 0.2.50 — universal touch zoom rail (candidate, 2026-11-25)
 
 - Replace the browser-only zoom rail with one shared left-edge controller for Chrome/Edge and the existing supported app set: Cursor, VS Code, Zed, Antigravity, Windows Terminal, WezTerm and Claude CLI.
-- Tap anywhere in the long vertical track to select the nearest native zoom step; press and drag continuously to preview the selected level, then apply once on release. Browser levels remain 50–200%; supported apps retain their own relative -4 to +8 levels.
+- A dedicated transparent hit surface now covers the entire track area; pointer/touch down anywhere in that area immediately selects the nearest native step and captures the gesture. Dragging no longer depends on grabbing the visual thumb; the thumb is only a position indicator. Apply once on release. Browser levels remain 50–200%; supported apps retain their own relative -4 to +8 levels.
 - Expand the rail to 64% of the usable phone-screen height, keep the narrow collapsed handle, retain two-second auto-collapse, outside-click dismissal and left-swipe dismissal, and add a mode-aware reset (100% for browsers, default level for apps).
 - Keep unsupported document/design applications out of the shortcut allowlist until their zoom commands are verified; WPS, Word and PDF/Adobe apps are not claimed as supported by this change.
 - Core tests: 364/364 passed. Windows Release build: 0 warnings, 0 errors. Real UU phone-side touch, drag and overlay-occlusion acceptance remains pending.
