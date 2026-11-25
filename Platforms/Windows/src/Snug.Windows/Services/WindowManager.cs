@@ -196,6 +196,11 @@ public sealed class WindowManager
                 Bottom = saved.NormalPosition.Y + saved.NormalPosition.Height
             }
         };
+        // Escape a Snug-session maximized/full-screen Windows window before
+        // applying its original normal placement. Do not unmaximize windows
+        // that were already maximized before Snug captured them.
+        if (saved.ShowCommand == 1 && NativeMethods.IsZoomed(handle))
+            NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
         if (!NativeMethods.SetWindowPlacement(handle, ref placement)) return false;
         if (saved.ShowCommand != 1 || record.OriginalPhysicalBounds is not { } original)
             return true; // Keep legacy/native minimized and maximized semantics.

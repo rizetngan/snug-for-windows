@@ -77,10 +77,10 @@ public sealed class VddDriverClient
         }
     }
 
-    public void WritePhoneProfile(PhoneChoice choice, int verticalInsetPoints = (int)ScreenFit.UuInset)
+    public void WritePhoneProfile(PhoneChoice choice, int verticalInsetPoints = (int)ScreenFit.UuInset, int preferredBaseWidth = 0)
     {
         ArgumentNullException.ThrowIfNull(choice);
-        var modes = VddResolutionProfile.Create(choice, verticalInsetPoints: verticalInsetPoints);
+        var modes = VddResolutionProfile.Create(choice, verticalInsetPoints: verticalInsetPoints, preferredBaseWidth: preferredBaseWidth);
         var profile = new
         {
             schemaVersion = 1,
@@ -89,6 +89,7 @@ public sealed class VddDriverClient
             screenHeight = choice.Screen.Height,
             points = choice.Screen.Points,
             verticalInsetPoints,
+            preferredBaseWidth,
             refreshRate = 60,
             modes = modes.Select(mode => new
             {

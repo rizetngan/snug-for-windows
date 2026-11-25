@@ -81,6 +81,19 @@
                         </ComboBox>
                     </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="内容密度" FontSize="14" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox DockPanel.Dock="Right" Width="165" Height="34"
+                                  SelectedIndex="{Binding BaseWidthOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  AutomationProperties.Name="手机屏内容密度"
+                                  ToolTip="保持画面比例，调整下次连接时的初始逻辑宽度">
+                            <ComboBoxItem Content="默认"/>
+                            <ComboBoxItem Content="600 · 更多内容"/>
+                            <ComboBoxItem Content="720 · 高密度"/>
+                            <ComboBoxItem Content="840 · 极高密度"/>
+                        </ComboBox>
+                    </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
                     <DockPanel>
                         <StackPanel>

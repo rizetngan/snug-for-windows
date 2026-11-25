@@ -24,21 +24,23 @@ public sealed class ScreenFit
 
     public static ScreenFit Standard { get; } = new(PhoneChoice.Standard.Screen);
 
-    public ScreenFit(PhoneScreen phone, int verticalInsetPoints = (int)UuInset)
+    public ScreenFit(PhoneScreen phone, int verticalInsetPoints = (int)UuInset,
+        int preferredBaseWidth = 0)
     {
         ArgumentNullException.ThrowIfNull(phone);
         if (!phone.IsValid) throw new ArgumentException("手机屏幕参数无效。", nameof(phone));
         if (verticalInsetPoints is < 0 or > 180)
             throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
-        if (verticalInsetPoints is < 0 or > 180)
-            throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
-        if (verticalInsetPoints is < 0 or > 180)
-            throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
+        if (preferredBaseWidth < 0 || preferredBaseWidth > MaxWidth)
+            throw new ArgumentOutOfRangeException(nameof(preferredBaseWidth));
         var points = phone.Points ?? AssumedPoints;
         Ratio = Clamp((double)phone.Height / phone.Width - 2 * verticalInsetPoints / points, MinRatio, MaxRatio);
-        BaseWidth = Enumerable.Range(0, (MaxWidth - MinWidth) / Step + 1)
+        var minimumWidth = Enumerable.Range(0, (MaxWidth - MinWidth) / Step + 1)
             .Select(index => MinWidth + index * Step)
             .FirstOrDefault(width => Math.Round(width * Ratio, MidpointRounding.AwayFromZero) >= MinHeight, MaxWidth);
+        var requested = preferredBaseWidth == 0
+            ? MinWidth : (int)Math.Ceiling(preferredBaseWidth / (double)Step) * Step;
+        BaseWidth = Math.Max(minimumWidth, requested);
         _widths = Enumerable.Range(0, (MaxWidth - BaseWidth) / Step + 1)
             .Select(index => BaseWidth + index * Step)
             .ToArray();

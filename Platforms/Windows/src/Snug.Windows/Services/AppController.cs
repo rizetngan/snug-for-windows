@@ -21,11 +21,19 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     // change its mode table in-place without invalidating UU's capture.
     private PhoneChoice? _activeDisplayPhoneChoice;
     private int? _activeDisplayInsetPoints;
+    private int? _activeDisplayPreferredBaseWidth;
+    private int _baseWidthOption;
     private string _uuViewportMode = UuViewportPreset.Classic;
     private PhoneChoice CurrentDisplayChoice => _activeDisplayPhoneChoice ?? _phoneChoice;
     private int CurrentDisplayInsetPoints => _activeDisplayInsetPoints
         ?? UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
-    private ScreenFit CurrentScreenFit => new(CurrentDisplayChoice.Screen, CurrentDisplayInsetPoints);
+    private int CurrentPreferredBaseWidth => _activeDisplayPreferredBaseWidth
+        ?? PhoneBaseWidth.AtIndex(_baseWidthOption);
+    private ScreenFit CurrentScreenFit => new(CurrentDisplayChoice.Screen,
+        CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
+    public ScreenFit PreviewScreenFit => new(_phoneChoice.Screen,
+        UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
+        PhoneBaseWidth.AtIndex(_baseWidthOption));
     private readonly UuSessionDetector _uuDetector = new();
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
@@ -109,6 +117,22 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 : "画面比例已保存；为避免 UU 切屏失效，下次创建手机屏时生效";
         }
     }
+    public int BaseWidthOption
+    {
+        get => _baseWidthOption;
+        set
+        {
+            var next = Math.Clamp(value, 0, PhoneBaseWidth.Options.Count - 1);
+            if (!Set(ref _baseWidthOption, next)) return;
+            _settings.PhoneBaseWidth = PhoneBaseWidth.AtIndex(next);
+            SaveSettings();
+            OnPropertyChanged(nameof(PreviewScreenFit));
+            ActivityStatus = _phoneDisplay is null
+                ? "内容密度已更新，下次连接生效"
+                : "内容密度已保存，下次创建手机屏时生效";
+        }
+    }
+
     public string ConnectionStatus { get => _connectionStatus; private set => Set(ref _connectionStatus, value); }
     public bool HasPlacedWindow => _placed is not null || _ledger.Load() is not null;
     public WindowKey? PlacedWindowKey => (_placed ?? _ledger.Load())?.Key;
@@ -273,6 +297,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _phoneChoice = PhoneChoice.Standard;
         }
         _uuViewportMode = UuViewportPreset.Normalize(_settings.UuViewportMode);
+        _baseWidthOption = PhoneBaseWidth.IndexOf(_settings.PhoneBaseWidth);
         _activeModeWidth = CurrentScreenFit.BaseWidth;
         _placedModeWidth = _activeModeWidth;
         _appCatalog = new AppCatalogService(_windowManager);
@@ -322,6 +347,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         SaveSettings();
         OnPropertyChanged(nameof(CurrentPhoneChoice));
         OnPropertyChanged(nameof(PhoneChoiceSummary));
+        OnPropertyChanged(nameof(PreviewScreenFit));
         ActivityStatus = $"已选择：{choice.Title}";
 
         // Upstream changes the modes of the same CGVirtualDisplay in place.
@@ -957,7 +983,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (!fit.Widths.Contains(width) || _phoneDisplay is null) return false;
         // Windows signed VDD has a validated 20-point mode grid. Round up
         // rather than requesting one of the unsupported intermediate widths.
-        width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width, CurrentDisplayInsetPoints);
+        width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width,
+            CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
         var pixels = fit.PixelSizeFor(width);
         var mode = new VddResolutionMode((int)pixels.Width, (int)pixels.Height, 60);
         await _modeGate.WaitAsync();
@@ -1516,7 +1543,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
             _activeDisplayPhoneChoice = _phoneChoice;
             _activeDisplayInsetPoints = UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
-            _driver.WritePhoneProfile(_activeDisplayPhoneChoice, CurrentDisplayInsetPoints);
+            _activeDisplayPreferredBaseWidth = PhoneBaseWidth.AtIndex(_baseWidthOption);
+            _driver.WritePhoneProfile(_activeDisplayPhoneChoice,
+                CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
             if (!await ChangeOwnedDisplayAsync(true))
                 throw new InvalidOperationException("无法启动 Snug 手机屏。请在设置中修复虚拟显示驱动。");
             // Startup already verified driver readiness and the owned display.
@@ -1705,6 +1734,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _phoneDisplay = null;
         _activeDisplayPhoneChoice = null;
         _activeDisplayInsetPoints = null;
+        _activeDisplayPreferredBaseWidth = null;
         _previewOpen = false;
 
         if (_driver.IsManagedBySnug)
@@ -1812,7 +1842,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             if (window.IsMinimized || !_windowManager.IsResponsive(window.Key)) continue;
             if (_windowManager.ReadBounds(window.Key) is not { } actual) continue;
-            if (_leftBehind.Match(window, actual, now) is not { } match) continue;
+            if (_leftBehind.Match(window, actual, now,
+                WindowManager.ProcessStartUtcTicks(window.Key.ProcessId)) is not { } match) continue;
 
             var old = match.Record;
             var uniqueDebt = _leftBehind.Entries.Count(entry =>
@@ -1927,6 +1958,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _settings.PhoneScreenWidth = _phoneChoice.Screen.Width;
         _settings.PhoneScreenHeight = _phoneChoice.Screen.Height;
         _settings.PhoneScreenPoints = _phoneChoice.Screen.Points;
+        _settings.PhoneBaseWidth = PhoneBaseWidth.AtIndex(_baseWidthOption);
         try { _settingsStore.Save(_settings); }
         catch (Exception error) { ActivityStatus = "设置保存失败：" + error.Message; }
     }

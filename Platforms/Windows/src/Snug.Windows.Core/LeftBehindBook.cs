@@ -61,26 +61,38 @@ public sealed class LeftBehindBook
         }
     }
 
-    public LeftBehindEntry? Match(WindowInfo window, WindowBounds actual, DateTimeOffset now)
+    public LeftBehindEntry? Match(WindowInfo window, WindowBounds actual, DateTimeOffset now,
+        long? processStartedUtcTicks = null)
     {
         lock (_gate)
         {
-            // Keep expired records from matching, even if no write happened.
+            // The exact same HWND + PID is stronger than geometry: Windows may
+            // resize a still-live window on monitor mode changes or fullscreen
+            // transitions. A different process generation invalidates that ID.
             var candidates = _entries.Where(entry =>
                 now - entry.Since <= KeepFor &&
-                entry.Record.FilledBounds is { } filled &&
+                entry.Record.FilledBounds is not null &&
                 StringComparer.OrdinalIgnoreCase.Equals(
                     entry.Record.ExecutablePath, window.ExecutablePath) &&
-                MatchesFilledSize(entry.Record, window, filled, actual)).ToArray();
+                !(entry.Record.Key == window.Key &&
+                  entry.Record.ProcessStartedUtcTicks is { } originalStart &&
+                  processStartedUtcTicks is { } currentStart &&
+                  originalStart != currentStart)).ToArray();
 
             static LeftBehindEntry? Latest(IEnumerable<LeftBehindEntry> items) =>
                 items.OrderByDescending(entry => entry.Since).FirstOrDefault();
 
-            return Latest(candidates.Where(entry => entry.Record.Key == window.Key))
-                ?? Latest(candidates.Where(entry =>
+            var exact = Latest(candidates.Where(entry => entry.Record.Key == window.Key));
+            if (exact is not null) return exact;
+
+            // Only a recreated window may use the older geometry/title
+            // heuristic; never apply a former HWND's restore record blindly.
+            var similar = candidates.Where(entry => entry.Record.FilledBounds is { } filled &&
+                MatchesFilledSize(entry.Record, window, filled, actual)).ToArray();
+            return Latest(similar.Where(entry =>
                     !string.IsNullOrWhiteSpace(entry.Record.Title) &&
                     StringComparer.Ordinal.Equals(entry.Record.Title, window.Title)))
-                ?? Latest(candidates);
+                ?? Latest(similar);
         }
     }
 

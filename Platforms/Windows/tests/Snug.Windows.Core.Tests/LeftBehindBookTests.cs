@@ -96,6 +96,45 @@ public sealed class LeftBehindBookTests
     }
 
     [Fact]
+    public void IdenticalWindowIdSurvivesResizeFullscreenOrMovedDimensions()
+    {
+        var path = PathForTest();
+        var now = DateTimeOffset.Parse("2026-11-17T00:00:00Z");
+        try
+        {
+            var book = new LeftBehindBook(path);
+            var record = Record(pid: 123, handle: 444, title: "Original title") with
+                { ProcessStartedUtcTicks = 112233L };
+            Assert.True(book.Add(record, now));
+            var window = Returning(pid: 123, handle: 444, title: "Changed title");
+            Assert.Equal(record.Key, book.Match(window,
+                new WindowBounds(-700, 20, 1200, 800), now,
+                processStartedUtcTicks: 112233L)!.Record.Key);
+            Assert.Null(book.Match(window, new WindowBounds(-700, 20, 1200, 800),
+                now, processStartedUtcTicks: 998877L));
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
+    }
+
+    [Fact]
+    public void RecreatedWindowStillNeedsFilledDimensionsAndExecutableMatch()
+    {
+        var path = PathForTest();
+        var now = DateTimeOffset.Parse("2026-11-17T00:00:00Z");
+        try
+        {
+            var book = new LeftBehindBook(path);
+            book.Add(Record(pid: 123, handle: 444), now);
+            Assert.Null(book.Match(Returning(pid: 123, handle: 445),
+                new WindowBounds(-700, 20, 1200, 800), now));
+            Assert.Null(book.Match(Returning(pid: 123, handle: 444,
+                    path: @"C:\Other\Code.exe"),
+                new WindowBounds(-700, 20, 1080, 1750), now));
+        }
+        finally { Directory.Delete(Path.GetDirectoryName(path)!, true); }
+    }
+
+    [Fact]
     public void ConsumeRemovesOnlyTheMatchedDebt()
     {
         var path = PathForTest();

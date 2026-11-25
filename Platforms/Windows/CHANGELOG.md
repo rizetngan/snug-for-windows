@@ -1,3 +1,12 @@
+## 0.2.49 — window recovery and content density (candidate, 2026-11-25)
+
+- Window identity now wins over changed geometry when reconciling a still-live, original HWND; an incompatible process generation is rejected. A newly recreated HWND still requires matching original application path and last Snug-filled size before restoring. This follows the recovery invariant established in upstream Snug 2.9.1 (#63).
+- Windows maximized windows with a saved normal placement explicitly exit maximization before original placement is restored. Previously maximized windows preserve their saved state.
+- New 内容密度 setting: original automatic width (default), 600, 720 and 840 logical units. It changes the initial phone workspace density without changing aspect ratio. The exact VDD mode list, mode snapping, window layout and touch baseline use the same pinned setting, effective when the phone screen is next created. Active UU capture is never rebuilt just because a setting changes.
+- Windows DxgKrnl capture already tracks independent contexts; add explicit regression tests for upstream 2.8.2's old/new video capture overlap in both event orders and temporary stop/restart. Audio-only stream identity and which physical monitor UU currently streams are not exposed by the current verified Windows capture monitor; do not claim them as ported.
+- Carries forward 0.2.48 left-edge WPF browser zoom, two-second collapse, shared UU bottom safe area, Classic/Expanded/Full viewport profiles and ten-minute background hold.
+- Candidate for end-to-end UU iPhone validation; do not publish as stable until all real-device checks pass.
+
 # Windows changelog
 
 ## 0.2.48 — background continuity, mobile safe area and one-handed zoom (release)

@@ -71,7 +71,7 @@ public partial class PhoneSurfaceWindow : Window
 
     private void UpdatePreviewCanvas()
     {
-        var fit = new ScreenFit(_controller.CurrentPhoneChoice.Screen);
+        var fit = _controller.PreviewScreenFit;
         var pixels = fit.PixelSizeFor(fit.BaseWidth);
         var canvas = PhoneCanvasLayout.ForDisplay((int)pixels.Width, (int)pixels.Height);
         PhoneCanvas.Width = canvas.Width;

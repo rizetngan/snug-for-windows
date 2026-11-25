@@ -24,6 +24,30 @@ public sealed class UuCaptureLifecycleTests
         Assert.Equal(UuCapturePhase.Rebuilding,c.Snapshot(T.AddSeconds(32.99)).Phase);
         Assert.Equal(UuCapturePhase.Inactive,c.Snapshot(T.AddSeconds(33)).Phase);
     }
+    [Fact] public void OverlappingOldAndNewCaptureStreamsNeverDisconnect()
+    {
+        var c = Start();
+        c.Observe(Server, 11, true, T);
+        c.Observe(Server, 22, true, T.AddSeconds(5));
+        c.Observe(Server, 11, false, T.AddSeconds(10));
+        Assert.Equal(UuCapturePhase.Active, c.Snapshot(T.AddSeconds(13)).Phase);
+        Assert.Equal(1, c.Snapshot(T.AddSeconds(13)).ObservedContexts);
+        c.Observe(Server, 22, false, T.AddSeconds(20));
+        Assert.Equal(UuCapturePhase.Rebuilding, c.Snapshot(T.AddSeconds(20)).Phase);
+        Assert.Equal(UuCapturePhase.Inactive, c.Snapshot(T.AddSeconds(23)).Phase);
+    }
+
+    [Fact] public void RestartWithinGraceIsNotAVerifiedDisconnect()
+    {
+        var c = Start();
+        c.Observe(Server, 11, true, T);
+        c.Observe(Server, 11, false, T.AddSeconds(10));
+        Assert.True(c.Snapshot(T.AddSeconds(11)).CaptureActive);
+        c.Observe(Server, 22, true, T.AddSeconds(12.95));
+        Assert.Equal(UuCapturePhase.Active, c.Snapshot(T.AddSeconds(13)).Phase);
+        Assert.Equal(1, c.Snapshot(T.AddSeconds(13)).ObservedContexts);
+    }
+
     [Fact] public void LateAttachDoesNotInventDisconnectedBaseline()
     {
         var c=Start(false);Assert.Null(c.Snapshot(T).CaptureActive);

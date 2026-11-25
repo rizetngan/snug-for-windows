@@ -13,6 +13,7 @@ public sealed class SnugSettings
     public bool ScreenshotEnabled { get; set; }
     public int ZoomSteps { get; set; } = 2;
     public string UuViewportMode { get; set; } = UuViewportPreset.Classic;
+    public int PhoneBaseWidth { get; set; }
     public string PhoneModel { get; set; } = "Apple iPhone 17 Pro Max";
     public int PhoneScreenWidth { get; set; } = 1320;
     public int PhoneScreenHeight { get; set; } = 2868;
