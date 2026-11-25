@@ -8,7 +8,7 @@
 
 为 UU 远程打造 · 独立竖屏 · 原生触控 · App 资源库
 
-![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.47-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.48-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 简体中文 · [English](README.en.md)
 
@@ -26,13 +26,29 @@
 
 Snug for Windows 是 [Snug](https://github.com/zephyr4123/snug) 的独立社区 Windows 移植项目，由 [rizetngan](https://github.com/rizetngan) 维护。基于 Snug 2.5.0，使用 C# / .NET 10 / WPF。macOS 用户请前往上游原项目。
 
+## 0.2.48 · 手机上的顺手细节
+
+![单手浏览器缩放](docs/0.2.48/media/side-zoom.svg)
+
+**左侧轻触，竖向缩放。** Chrome / Edge 阅读报告、AI 对话或代码文档时，单手调节网页比例；操作后约2秒收起。
+
+![UU 底部安全区](docs/0.2.48/media/uu-safe-area.svg)
+
+**两个菜单，各有位置。** Snug 返回导航和应用窗口一起避开 UU 手机操作栏，不需要调出键盘错位才能操作。
+
+![后台切换后继续](docs/0.2.48/media/background-resume.svg)
+
+**临时切到其他 App，回来继续原来的窗口。** 在保留期内复用原虚拟屏，不反复重建。
+
+[查看完整图文产品说明](docs/0.2.48/README.md)
+
 ## 下载安装
 
-**0.2.47 正式发布版** · Windows x64（Windows 10 22H2 已实测）
+**0.2.48 正式发布版** · Windows x64（Windows 10 22H2 已实测）
 
-**[下载安装包（Windows x64）](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.47/Snug-Setup-0.2.47-x64.exe)** · [发布说明](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.47) · [SHA-256 校验](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.47/SHA256SUMS.txt) · [从源码构建](Platforms/Windows/README.md#构建与打包)
+**[下载安装包（Windows x64）](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/Snug-Setup-0.2.48-x64.exe)** · [发布说明](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.48) · [SHA-256 校验](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/SHA256SUMS.txt) · [从源码构建](Platforms/Windows/README.md#构建与打包)
 
-安装包：Snug-Setup-0.2.47-x64.exe。本版保留点击延迟修复，同一次 UU 会话内可自由切换主屏与手机屏，并通过 App 资源库还原窗口。优化手机屏创建与释放：Windows 10 22H2 + iPhone 实测检测连接至手机屏就绪 4.43 秒，判定中断至释放完成 2.82 秒（单次记录，不含 UU 自身处理及检测前等待）。内置 .NET 运行时及签名虚拟显示驱动；安装器本身未签名，需管理员授权。若升级时 UU 后台已运行，完整捕获证据可能暂不可用，程序保留兼容检测与 6 秒重连保护；可在断开所有 UU 远控后重启 UU Windows 服务。
+安装包：Snug-Setup-0.2.48-x64.exe。新增左侧竖向网页缩放条、自动收起、UU 底部菜单安全区和手机后台切换后的虚拟屏保留；提供标准／扩展／全面屏三档画面比例。325项核心测试通过。若 UU 主动断开后需要立即释放虚拟屏，请关闭 Snug「手机屏」或退出 Snug；后台保留最长约10分钟。安装需正常 Windows 管理员授权。
 
 已知问题：UU iOS 端键盘收起后直接再次弹出，可能无法自动避让输入框；普通电脑屏幕也可复现。重新点击输入框后再调起键盘可恢复适配。
 

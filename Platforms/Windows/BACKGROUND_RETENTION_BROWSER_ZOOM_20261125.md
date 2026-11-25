@@ -9,7 +9,7 @@ DxgKrnl output duplication stops both when UU video pauses in the iPhone backgro
 - While suspended, connection label says UU 已暂停 · 手机屏保留. The input hook stops and resumes with session presence.
 
 ## Browser
-- Bottom HomeBar shows 缩放 when a Chrome or Edge window is placed. Popup has slider with native 50 / 67 / 75 / 80 / 90 / 100 / 110 / 125 / 150 / 175 / 200 percent stops, plus/minus and reset.
+- Chrome/Edge now show a compact left-edge BrowserZoomRailWindow. Expanding it reveals a vertical slider with native 50 / 67 / 75 / 80 / 90 / 100 / 110 / 125 / 150 / 175 / 200 percent stops, plus/minus and reset.
 - Native Ctrl+0 then browser zoom shortcuts only on user action. Zoom is per-site according to browser behavior. No automatic browser zoom changes on placement/restoration, no virtual display resolution changes. Initial slider shows a target only, as browser may have an existing per-site zoom.
 
 ## Acceptance checklist
@@ -29,3 +29,7 @@ The connected Windows UU server reports 4.48.4.6020; iPhone UU app version canno
 0.2.48 adds UU 画面比例 settings: 标准（旧版） uses 91 points each edge, 扩展画面 uses 45, 全面屏 uses 0. Identical inset controls VDD advertised modes, Window screen fit and touch scaling. A new setting applies only when a new Snug display is created, not while the existing UU-selected virtual monitor is live. Default Classic remains until real-device calibration. Use the actual iPhone viewport to choose best preset; never assume full screen is always correct.
 
 Acceptance: safely end existing managed window; disconnect UU; launch candidate, compare presets on iPhone; check fit without top/bottom cropping or black borders, correct touch targets, taskbar and HomeBar, switch primary/phone screens, browser zoom, 10s/1m/5m UU backgrounding, and Phone Screen OFF cleanup. No publish before user acceptance.
+\n## 0.2.48 final touch-layout refinement
+The original browser zoom Popup was removed from the HomeBar after its tiny 13pt typography and native bottom-menu overlap were confirmed in an iPhone screenshot. A non-activating, opaque WPF side rail handles Chrome/Edge zoom with a 69x71 collapsed handle, 86x427 expanded control, native zoom slider and 2s auto-collapse. Global pointer observation is only used to dismiss on an outside click; it never swallows webpage clicks.
+
+UU bottom operation-menu overlap is addressed by a shared UuMobileOverlaySafeArea calculation: a proportional inset based on virtual desktop width is excluded from the managed app height and positions Snug's return HomeBar above the UU native toolbar. This modifies neither the physical display nor the advertised VDD mode table. Validation uses core geometry tests and a real WPF rendering harness; final iPhone screen-side confirmation remains useful across UU versions.

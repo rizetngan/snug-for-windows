@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600">
+<defs><linearGradient id="b" x2="1" y2="1"><stop stop-color="#172235"/><stop offset="1" stop-color="#080E17"/></linearGradient></defs>
+<rect width="1200" height="600" fill="url(#b)"/>
+<text x="65" y="57" fill="#73E7C8" font-family="Segoe UI,Microsoft YaHei" font-weight="700" font-size="18">SNUG FOR WINDOWS · 0.2.48</text>
+<text x="65" y="109" fill="#F3F7FC" font-family="Microsoft YaHei" font-weight="700" font-size="35">离开一会儿，回来继续</text>
+<text x="66" y="147" fill="#9EAEC0" font-family="Microsoft YaHei" font-size="18">手机切出 UU 不意味着桌面工作结束 · 记住正在使用的窗口</text>
+<g font-family="Microsoft YaHei">
+<rect x="72" y="196" width="296" height="340" rx="24" fill="#182535" stroke="#496174" stroke-width="2"/>
+<rect x="95" y="222" width="250" height="219" rx="15" fill="#253649"/>
+<rect x="113" y="242" width="215" height="34" rx="8" fill="#374C60"/>
+<rect x="113" y="300" width="193" height="12" rx="6" fill="#8195A9"/>
+<rect x="113" y="327" width="168" height="12" rx="6" fill="#8195A9" opacity=".6"/>
+<text x="220" y="486" text-anchor="middle" font-size="23" fill="#F2F5FB" font-weight="700">在 UU 中工作</text>
+<path d="M377 365H435M421 353L436 365L421 377" fill="none" stroke="#80E3CC" stroke-width="4"/>
+<rect x="449" y="196" width="296" height="340" rx="24" fill="#182535" stroke="#496174" stroke-width="2"/>
+<rect x="472" y="222" width="250" height="219" rx="15" fill="#253649"/>
+<rect x="496" y="250" width="85" height="78" rx="19" fill="#72BCAC"/>
+<rect x="612" y="250" width="85" height="78" rx="19" fill="#679BD0"/>
+<rect x="496" y="354" width="85" height="68" rx="19" fill="#B392C4"/>
+<rect x="612" y="354" width="85" height="68" rx="19" fill="#D8AB70"/>
+<text x="597" y="486" text-anchor="middle" font-size="23" fill="#F2F5FB" font-weight="700">切换其他 App</text>
+<path d="M754 365H812M798 353L813 365L798 377" fill="none" stroke="#80E3CC" stroke-width="4"/>
+<rect x="826" y="196" width="296" height="340" rx="24" fill="#182535" stroke="#5F9B8E" stroke-width="2"/>
+<rect x="849" y="222" width="250" height="219" rx="15" fill="#253649"/>
+<rect x="867" y="242" width="215" height="34" rx="8" fill="#374C60"/>
+<rect x="867" y="300" width="193" height="12" rx="6" fill="#8195A9"/>
+<rect x="867" y="327" width="168" height="12" rx="6" fill="#8195A9" opacity=".6"/>
+<circle cx="1052" cy="400" r="22" fill="#75E3C4"/>
+<path d="M1042 400L1050 408L1065 390" stroke="#14362D" stroke-width="4" fill="none" stroke-linecap="round"/>
+<text x="974" y="486" text-anchor="middle" font-size="23" fill="#F2F5FB" font-weight="700">返回原窗口</text>
+</g>
+<text x="1119" y="567" text-anchor="end" fill="#71849A" font-family="Microsoft YaHei" font-size="13">会话保留示意 · 最长约 10 分钟，主动关闭手机屏可立即释放</text>
+</svg>

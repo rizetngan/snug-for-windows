@@ -1,10 +1,12 @@
 # Windows changelog
 
-## 0.2.48 — background retention and browser zoom (candidate)
+## 0.2.48 — background continuity, mobile safe area and one-handed zoom (release)
 
 - Keep an existing owned Snug display and managed window through mobile UU temporary capture suspension for up to ten minutes; returning to UU reuses the same display instead of recreating it. A background hold never creates a new display. True explicit setting-off or Snug Quit still releases the screen.
 - A capture-inactive event is not a verified UU controller exit. The fast 0.2.47 disconnect end is intentionally replaced by a background-retention timeout for the existing screen, until a trustworthy controller-level quit signal is found. Manual release via Phone Screen OFF is available.
-- Chrome and Edge: a compact browser zoom slider in the bottom HomeBar, native 50–200% stops, +/- and reset. Only the current webpage is changed when the user explicitly adjusts zoom. No DPI or display mode changes.
+- Chrome and Edge: replaced the bottom popup with a native WPF left-edge vertical zoom rail, 50–200% native steps, +/- and reset. The opaque ClearType control supports two-second auto-collapse, outside-click collapse, and a leftward dismiss gesture. Only the current webpage is zoomed, without changing display resolution.
+- UU mobile menu avoidance: use one proportional bottom safe zone for both the managed application bounds and Snug HomeBar placement, rather than letting the UU operation menu cover the virtual-display navigation.
+- WPF rail rendering checked in an isolated real-control harness; collapsed 69×71, expanded 86×427, auto-collapsed again after about two seconds. 325/325 core tests and the Windows Release build passed. The mobile UU touch/occlusion regression remains subject to phone-side testing.
 - Latest UU viewport compatibility: selectable classic / expanded / fullscreen presets. Recomputes phone aspect ratio, VDD mode table, window geometry and touch scaling consistently. Presets take effect on next display creation, never destructively while connected. Classic preserves 0.2.47 geometry.
 - Preserve upstream-inspired app library, window restoration, input replay, driver safeguards, quick connect and monitor switching. iPhone acceptance pending.
 

@@ -63,6 +63,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private volatile WindowRestoreRecord? _placed;
     private PhoneSurfaceWindow? _phoneSurface;
     private HomeBarWindow? _homeBar;
+    private BrowserZoomRailWindow? _browserZoomRail;
     private AppBackBarWindow? _appBackBar;
     private bool _previewOpen;
     private bool _showingPhoneList = true;
@@ -191,7 +192,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if(_disposed) return;
         if(_phoneDisplay is { } display && !_showingPhoneList && _placed is not null && _screenshots.Overlay is { } shot)
         {
-            if(_screenshots.IsCropping) _homeBar?.Hide();
+            if (_screenshots.IsCropping)
+            {
+                _homeBar?.Hide();
+                _browserZoomRail?.Hide();
+            }
             else ShowHomeBar(display);
             _screenshotPanel=new ScreenshotPanelWindow(this,shot);
             _screenshotPanel.PlaceOn(display);
@@ -872,6 +877,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _gestureHook.SetRegion(null);
         _homeBar?.Close();
         _homeBar = null;
+        _browserZoomRail?.Close();
+        _browserZoomRail = null;
         _appBackBar?.Close();
         _appBackBar = null;
         _phoneSurface?.Close();
@@ -922,7 +929,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     // the EXACT same bar height used by HomeBarWindow, not doubled raw pixels.
     private WindowBounds CurrentAppArea(DisplayInfo display) => display.Bounds with
     {
-        Height = Math.Max(200, display.Bounds.Height - ScreenFit.HomeBarHeight(display.Bounds.Width))
+        Height = UuMobileOverlaySafeArea.ContentHeight(display.Bounds.Width, display.Bounds.Height)
     };
 
     /// <summary>Only the Snug-owned monitor may change, and only to a VDD-advertised mode.</summary>
@@ -1008,6 +1015,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _activeModeWidth = width;
             _phoneSurface?.PlaceOn(found);
             _homeBar?.PlaceOn(found);
+            _browserZoomRail?.PlaceOn(found);
             _appBackBar?.PlaceOn(found);
             _screenshotPanel?.PlaceOn(found);
             _gestureHook.SetRegion(found, TouchScale());
@@ -1282,7 +1290,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _askingDialogKey = null;
         ActivityStatus = result.Message;
         _homeBar?.Hide();
-        _homeBar?.SetBrowserZoomVisible(false, null);
+        _browserZoomRail?.Hide();
         _browserZoomKnown = false;
         _appBackBar?.Hide();
         if (result.Restored) _placedModeWidth = CurrentScreenFit.BaseWidth;
@@ -1305,7 +1313,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PlacedWindowKey));
         OnPropertyChanged(nameof(PlacedAppName));
         _homeBar?.Hide();
-        _homeBar?.SetBrowserZoomVisible(false, null);
+        _browserZoomRail?.Hide();
         _appBackBar?.Hide();
         if (_phoneSurface is { IsVisible: false }) _phoneSurface.Show();
         SyncGestures();
@@ -1584,12 +1592,19 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_screenshots.IsCropping) return;
         _homeBar ??= new HomeBarWindow(this);
         var record = _placed ?? _ledger.Load();
-        _homeBar.SetBrowserZoomVisible(record is not null &&
-            BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName),
-            _browserZoomKnown ? _browserZoomIndex : null);
         _homeBar.SetCameraVisible(ScreenshotEnabled);
         _homeBar.PlaceOn(display);
         _homeBar.Show();
+        var isBrowser = record is not null &&
+            BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName);
+        if (isBrowser)
+        {
+            _browserZoomRail ??= new BrowserZoomRailWindow(this);
+            _browserZoomRail.PlaceOn(display);
+            _browserZoomRail.SetLevel(_browserZoomKnown ? _browserZoomIndex : null);
+            _browserZoomRail.Show();
+        }
+        else _browserZoomRail?.Hide();
     }
 
     private void ShowAppBackBar(DisplayInfo display, string appName, bool canZoom, int zoomSteps)
@@ -1615,7 +1630,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         }
         _browserZoomIndex = index;
         _browserZoomKnown = true;
-        _homeBar?.SetBrowserZoomVisible(true, index);
+        _browserZoomRail?.SetLevel(index);
         ActivityStatus = $"网页缩放 {BrowserZoomLevels.PercentAt(index)}%";
     }
 
@@ -1681,6 +1696,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _gestureHook.SetRegion(null);
         _homeBar?.Close();
         _homeBar = null;
+        _browserZoomRail?.Close();
+        _browserZoomRail = null;
         _appBackBar?.Close();
         _appBackBar = null;
         _phoneSurface?.Close();
@@ -1939,6 +1956,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         UuCaptureAcceptanceAudit.Close();
         _gestureHook.Dispose();
         _homeBar?.Close();
+        _browserZoomRail?.Close();
         _appBackBar?.Close();
         _phoneSurface?.Close();
     }

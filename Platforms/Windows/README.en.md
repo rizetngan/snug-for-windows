@@ -2,7 +2,10 @@
 
 [简体中文](README.md) · [English](README.en.md) · [Project home](../../README.en.md)
 
-Snug enhances display and touch interaction for UU Remote. This community contribution adds Windows support to [Snug](https://github.com/zephyr4123/snug) 2.5.0, preserving the original App Library, phone workspace, window restoration, gestures and screenshot workflow alongside macOS. Windows 0.2.47 is an independently maintained release; upstream has explicitly declined to merge the Windows port, so Windows support will continue on a separate maintenance track.
+Snug enhances display and touch interaction for UU Remote. This community contribution adds Windows support to [Snug](https://github.com/zephyr4123/snug) 2.5.0, preserving the original App Library, phone workspace, window restoration, gestures and screenshot workflow alongside macOS. Windows 0.2.48 is an independently maintained release; upstream has explicitly declined to merge the Windows port, so Windows support will continue on a separate maintenance track.
+
+Version 0.2.48 adds a bottom UU phone-safe area, a Chrome/Edge left-side zoom rail, up to ten minutes of background phone-display retention and Classic/Expanded/Full viewport calibration. The same inset applies to Snug's navigation and managed app content. See the [illustrated 0.2.48 guide](../../docs/0.2.48/README.md). For immediate release after UU disconnect, turn Phone Screen OFF.
+
 
 ## Installation and usage
 

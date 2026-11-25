@@ -8,7 +8,7 @@
 
 Built for UU Remote · Dedicated portrait display · Native gestures · App Library
 
-![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.47-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.48-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 [简体中文](README.md) · English
 
@@ -26,13 +26,29 @@ Built for UU Remote · Dedicated portrait display · Native gestures · App Libr
 
 Snug for Windows is an independent community port of [Snug](https://github.com/zephyr4123/snug), maintained by [rizetngan](https://github.com/rizetngan). Based on Snug 2.5.0, it uses C# / .NET 10 / WPF. For macOS, visit the upstream project.
 
+## New in 0.2.48 · Built for your phone
+
+![One-handed browser zoom](docs/0.2.48/media/side-zoom.svg)
+
+**Zoom naturally.** A vertical Chrome/Edge page-zoom rail appears at the left edge and collapses automatically.
+
+![UU mobile bottom safe area](docs/0.2.48/media/uu-safe-area.svg)
+
+**Two toolbars, no collision.** Snug's return bar and app content stay clear of UU's phone controls.
+
+![Keep your desktop window](docs/0.2.48/media/background-resume.svg)
+
+**Step away and come right back.** Switching mobile apps no longer means instantly destroying the Snug phone display.
+
+[Illustrated feature guide (中文)](docs/0.2.48/README.md)
+
 ## Download
 
-**0.2.47 release** · Windows x64 (tested on Windows 10 22H2).
+**0.2.48 release** · Windows x64 (tested on Windows 10 22H2).
 
-**[Download installer (Windows x64)](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.47/Snug-Setup-0.2.47-x64.exe)** · [Release notes](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.47) · [SHA-256 checksums](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.47/SHA256SUMS.txt) · [Build from source](Platforms/Windows/README.en.md)
+**[Download installer (Windows x64)](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/Snug-Setup-0.2.48-x64.exe)** · [Release notes](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.48) · [SHA-256 checksums](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/SHA256SUMS.txt) · [Build from source](Platforms/Windows/README.en.md)
 
-Installer: Snug-Setup-0.2.47-x64.exe. Retains the input-latency fix, keeps the phone display available when switching monitors in an active UU session, and restores managed windows from the App Library. One measured Windows 10 22H2 + iPhone episode: 4.43s from detected connection to phone-screen readiness; 2.82s from detected interruption to display release (not tap-to-response latency). Includes the .NET runtime and signed virtual display driver; the installer itself is unsigned and requires administrator authorization. If the UU server predates the capture monitor after an upgrade, the compatibility path and six-second reconnect grace remain available. Restart the UU Windows service only after all UU controllers disconnect to establish complete capture evidence.
+Installer: Snug-Setup-0.2.48-x64.exe. Adds a one-handed left-edge Chrome/Edge zoom rail, a mobile-safe area above UU's bottom toolbar, a ten-minute hold of an existing phone display while capture is paused, and Classic/Expanded/Full viewport presets. Explicit UU disconnect may also retain the screen until timeout; turn Phone Screen OFF or quit Snug for immediate release. 325 automated tests passed. Install with standard Windows UAC approval.
 
 Known issue: reopening the UU iOS keyboard without tapping the remote input again may fail to pan the viewport. This also reproduces on the normal computer screen; tap the input again before opening the keyboard.
 

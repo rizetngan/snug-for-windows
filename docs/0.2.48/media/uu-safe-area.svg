@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600">
+<defs><linearGradient id="b" x2="1" y2="1"><stop stop-color="#152234"/><stop offset="1" stop-color="#0A0F17"/></linearGradient></defs>
+<rect width="1200" height="600" fill="url(#b)"/>
+<text x="65" y="57" fill="#73E7C8" font-family="Segoe UI,Microsoft YaHei" font-weight="700" font-size="18">SNUG FOR WINDOWS · 0.2.48</text>
+<text x="65" y="109" fill="#F3F7FC" font-family="Microsoft YaHei" font-size="35" font-weight="700">底部安全区，不再互相遮挡</text>
+<text x="66" y="147" fill="#9EAEC0" font-family="Microsoft YaHei" font-size="18">网页内容、Snug 导航、UU 原生操作栏各归其位</text>
+<g font-family="Microsoft YaHei">
+<rect x="139" y="188" width="367" height="359" rx="24" fill="#192532" stroke="#48566A" stroke-width="2"/>
+<text x="158" y="231" fill="#E5EAF3" font-size="22" font-weight="700">旧版 · 菜单重叠</text>
+<rect x="158" y="253" width="330" height="218" rx="12" fill="#0C1420"/>
+<rect x="174" y="277" width="285" height="29" rx="7" fill="#283847"/>
+<rect x="174" y="327" width="258" height="10" rx="5" fill="#4F6175"/>
+<rect x="174" y="347" width="222" height="10" rx="5" fill="#4F6175" opacity=".65"/>
+<rect x="158" y="472" width="330" height="35" fill="#DCE2EA"/>
+<text x="323" y="496" text-anchor="middle" fill="#222B38" font-size="16">Snug 导航栏</text>
+<rect x="158" y="495" width="330" height="36" fill="#D96C75" opacity=".8"/>
+<text x="323" y="519" text-anchor="middle" fill="#FFF3F3" font-size="16">UU 原生菜单</text>
+<path d="M536 361H651" stroke="#80E4CC" stroke-width="4" stroke-linecap="round"/>
+<path d="M637 347L652 361L637 376" fill="none" stroke="#80E4CC" stroke-width="4"/>
+<rect x="686" y="188" width="367" height="359" rx="24" fill="#192532" stroke="#70B9A5" stroke-width="2"/>
+<text x="705" y="231" fill="#E5EAF3" font-size="22" font-weight="700">新版 · 独立安全区</text>
+<rect x="705" y="253" width="330" height="201" rx="12" fill="#0C1420"/>
+<rect x="721" y="277" width="285" height="29" rx="7" fill="#283847"/>
+<rect x="721" y="327" width="258" height="10" rx="5" fill="#4F6175"/>
+<rect x="721" y="347" width="222" height="10" rx="5" fill="#4F6175" opacity=".65"/>
+<rect x="705" y="459" width="330" height="35" fill="#DCE2EA"/>
+<text x="870" y="482" text-anchor="middle" fill="#222B38" font-size="16">Snug 导航栏</text>
+<rect x="705" y="495" width="330" height="36" fill="#203D3A"/>
+<text x="870" y="519" text-anchor="middle" fill="#9BF0D7" font-size="16">UU 原生菜单安全区</text>
+</g>
+<text x="1119" y="568" text-anchor="end" fill="#71849A" font-family="Microsoft YaHei" font-size="13">示意图 · 避让区域随手机屏宽度自适应</text>
+</svg>

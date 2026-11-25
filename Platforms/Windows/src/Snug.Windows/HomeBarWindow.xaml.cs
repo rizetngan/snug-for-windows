@@ -19,10 +19,6 @@ public partial class HomeBarWindow : Window
         _controller = controller;
         Opacity = 0;
         Loaded += (_, _) => ApplyPlacement();
-        IsVisibleChanged += (_, _) =>
-        {
-            if (!IsVisible) BrowserZoomPopup.IsOpen = false;
-        };
     }
 
     public void PlaceOn(DisplayInfo display)
@@ -49,12 +45,14 @@ public partial class HomeBarWindow : Window
             // NOZORDER was keeping HomeBar *behind* Shell_SecondaryTrayWnd.
             var placed = NativeMethods.SetWindowPos(handle, new IntPtr(-1),
                 display.Bounds.X,
-                display.Bounds.Y + display.Bounds.Height - barHeight,
+                display.Bounds.Y + display.Bounds.Height - barHeight
+                    - UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width),
                 display.Bounds.Width,
                 barHeight,
                 NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
             if (!placed)
-                Top = (display.Bounds.Y + display.Bounds.Height - barHeight) / display.DpiScaleY;
+                Top = (display.Bounds.Y + display.Bounds.Height - barHeight
+                    - UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width)) / display.DpiScaleY;
         }
 
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
@@ -110,48 +108,6 @@ public partial class HomeBarWindow : Window
     {
         if (!_swipeActivated) await _controller.TakeScreenshotAsync();
         _swipeActivated = false;
-    }
-
-    public void SetBrowserZoomVisible(bool visible, int? levelIndex)
-    {
-        BrowserZoomButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        if (!visible) BrowserZoomPopup.IsOpen = false;
-        var index = levelIndex ?? BrowserZoomLevels.DefaultIndex;
-        BrowserZoomSlider.Value = index;
-        BrowserZoomButtonText.Text = levelIndex is null ? "缩放" : $"{BrowserZoomLevels.PercentAt(index)}%";
-        BrowserZoomPercentText.Text = $"{BrowserZoomLevels.PercentAt(index)}%";
-    }
-
-    private void ToggleBrowserZoom_Click(object sender, RoutedEventArgs e) =>
-        BrowserZoomPopup.IsOpen = !BrowserZoomPopup.IsOpen;
-
-    private void BrowserZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (BrowserZoomPercentText is not null)
-            BrowserZoomPercentText.Text = $"{BrowserZoomLevels.PercentAt((int)Math.Round(e.NewValue))}%";
-    }
-
-    private void CommitBrowserZoom()
-    {
-        var index = (int)Math.Round(BrowserZoomSlider.Value);
-        _controller.SetCurrentBrowserZoomIndex(index);
-    }
-    private void BrowserZoomSlider_MouseUp(object sender, MouseButtonEventArgs e) => CommitBrowserZoom();
-    private void BrowserZoomSlider_TouchUp(object sender, TouchEventArgs e) => CommitBrowserZoom();
-    private void BrowserZoomMinus_Click(object sender, RoutedEventArgs e)
-    {
-        BrowserZoomSlider.Value = BrowserZoomLevels.ClampIndex((int)BrowserZoomSlider.Value - 1);
-        CommitBrowserZoom();
-    }
-    private void BrowserZoomPlus_Click(object sender, RoutedEventArgs e)
-    {
-        BrowserZoomSlider.Value = BrowserZoomLevels.ClampIndex((int)BrowserZoomSlider.Value + 1);
-        CommitBrowserZoom();
-    }
-    private void BrowserZoomReset_Click(object sender, RoutedEventArgs e)
-    {
-        BrowserZoomSlider.Value = BrowserZoomLevels.DefaultIndex;
-        CommitBrowserZoom();
     }
 
     private double? _swipeStart;
