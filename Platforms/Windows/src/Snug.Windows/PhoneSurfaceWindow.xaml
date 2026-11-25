@@ -383,6 +383,10 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="68"/>
                 <RowDefinition Height="*"/>
+                <!-- Dedicated native UU phone operation-tray inset. Scrollable
+                     content ends above it; the Window still covers the full
+                     VDD, shielding the Windows secondary taskbar. -->
+                <RowDefinition Height="0"/>
             </Grid.RowDefinitions>
 
             <!-- Back row is always reserved so the title never jumps. -->

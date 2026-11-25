@@ -92,6 +92,11 @@ public partial class PhoneSurfaceWindow : Window
         var canvas = PhoneCanvasLayout.ForDisplay(display.Bounds.Width, display.Bounds.Height);
         PhoneCanvas.Width = canvas.Width;
         PhoneCanvas.Height = canvas.Height;
+        // Viewbox transforms the 540-unit PhoneCanvas to the full physical VDD.
+        // Convert the same pixel inset used for placed apps/HomeBar into canvas
+        // units so the last app card is never trapped behind UU's native tray.
+        PhoneCanvas.RowDefinitions[2].Height = new GridLength(
+            UuMobileOverlaySafeArea.PhoneCanvasInset(display.Bounds.Width, canvas.Width));
         if (IsLoaded) ApplyPlacement();
     }
 

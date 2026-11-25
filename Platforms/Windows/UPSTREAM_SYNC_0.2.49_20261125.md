@@ -43,3 +43,13 @@ now uses raw DEVMODE physical position and dimensions for each monitor, falling
 back only when unavailable. PhoneSurfaceWindow is elevated over the secondary
 taskbar at its native full-monitor bounds. Follow-up real UU screenshot must
 confirm browser viewport, touch mapping, screenshot button and UU native toolbar.
+
+## 2026-11-25 follow-up iPhone screenshot: UU-native bottom overlap
+The full-width App library now renders correctly on the raw VDD. However
+the last App row was still being shown behind the floating UU iPhone control
+tray. PhoneSurface now gives its app/search/model canvas an additional
+proportional bottom row, translated from the same physical pixel inset
+already used by AppController's managed-window bounds and HomeBar positioning.
+The WPF top-level window remains full VDD size and topmost so that Windows
+secondary taskbar cannot bleed through. Native UU phone overlay itself
+remains controlled by the UU app.

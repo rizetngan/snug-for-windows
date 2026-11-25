@@ -16,6 +16,16 @@ public static class UuMobileOverlaySafeArea
             MidpointRounding.AwayFromZero);
     }
 
+    // PhoneSurface uses the upstream fixed 540-wide design canvas. Reserve
+    // the UU toolbar *inside the scrollable phone UI*, too: otherwise the
+    // last app cards render beneath UU's native controls even though the
+    // managed Chrome/editor windows already avoid them.
+    public static double PhoneCanvasInset(double physicalWidth, double canvasWidth)
+    {
+        if (physicalWidth <= 0 || canvasWidth <= 0) return 0;
+        return BottomInset(physicalWidth) * canvasWidth / physicalWidth;
+    }
+
     public static int ReservedBottom(double logicalScreenWidth) =>
         BottomInset(logicalScreenWidth) + ScreenFit.HomeBarHeight(logicalScreenWidth);
 
