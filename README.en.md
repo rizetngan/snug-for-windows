@@ -52,6 +52,37 @@ Installer: Snug-Setup-0.2.48-x64.exe. Adds a one-handed left-edge Chrome/Edge zo
 
 Known issue: reopening the UU iOS keyboard without tapping the remote input again may fail to pan the viewport. This also reproduces on the normal computer screen; tap the input again before opening the keyboard.
 
+## PowerShell installation
+
+Paste this into **Windows PowerShell** to download and verify the latest stable GitHub Release, then open its installer with confirmation:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $env:TEMP 'install-snug.ps1'
+Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/rizetngan/snug-for-windows/main/scripts/install-windows.ps1' -OutFile $script
+& $script
+```
+
+The script verifies SHA-256, asks you to disconnect active UU Remote sessions, and only then starts the official installer. The installer requests administrator approval to install the signed virtual display driver and capture-monitor task. No UU session is disconnected automatically.
+
+[Review the PowerShell installer](scripts/install-windows.ps1). To download and verify without installing, replace the last line with `& $script -DownloadOnly`.
+
+## Install with an AI Agent
+
+Copy the following prompt into an Agent authorized to operate your Windows computer:
+
+```text
+Install the latest stable version of Snug for Windows on this Windows x64 computer:
+https://github.com/rizetngan/snug-for-windows
+
+1. Check the Windows version and architecture, then select the latest stable Snug-Setup-*-x64.exe from this repository's official GitHub Releases. Do not use third-party mirrors or compile the source instead.
+2. Download SHA256SUMS.txt from that release and verify the installer before executing it.
+3. Check for an existing Snug installation and active UU Remote sessions. Preserve existing settings. If a remote session is active, ask me to disconnect it; never terminate the connection or restart UU on your own.
+4. Explain that the installer requests administrator authorization and deploys the bundled signed virtual display driver and SYSTEM-level UU capture-monitor task. Ask for my approval and run the official installer interactively, without disabling Windows protections.
+5. Confirm Snug launches and its phone-screen settings are accessible. If UU Remote is missing, tell me that it must be installed on the computer and phone; do not install it without permission.
+6. Report the installed version, path, checksum result, startup result, and any remaining steps I need to perform.
+```
+
 ## Native experience
 
 Ordinary remote desktop software scales the entire Windows desktop into a phone screen, making small text and controls harder to use. Snug creates a dedicated portrait display for UU Remote and fits Windows app windows to it, rather than requiring repeated whole-desktop zooming.

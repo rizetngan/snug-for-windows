@@ -15,6 +15,21 @@ Snug 为 UU远程 提供手机原生级的显示与触控体验。本贡献在 [
 4. 可在设置打开截图（默认关闭）。进入 App 后点底部相机，复制当前窗口图片；点预览可以裁剪后再次复制。
 5. SYSTEM 后台监视器只观察 UU 显示捕获生命周期，通过本机单向管道向 Snug 发送固定状态数据。它能判断捕获活动，不能确认控制端设备类型或物理显示器身份。监视器启动过晚或 ETW 事件丢失时，Snug 会回退到未知/兼容模式，不会臆测为已断开。
 
+## PowerShell / Agent 安装
+
+在 **Windows PowerShell** 中直接安装最新稳定版：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $env:TEMP 'install-snug.ps1'
+Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/rizetngan/snug-for-windows/main/scripts/install-windows.ps1' -OutFile $script
+& $script
+```
+
+脚本会验证 Release 的 SHA-256，在安装虚拟显示驱动前要求确认 UU 已断开，并触发正常的管理员授权提示。**Agent 安装提示词：** [查看并复制](../../README.md#使用-agent-安装)。
+
+脚本源码：[scripts/install-windows.ps1](../../scripts/install-windows.ps1)。只下载并校验：使用 `& $script -DownloadOnly`。
+
 ## 构建与打包
 
 依赖：Windows x64（Windows 10 22H2 已实测），.NET SDK 10.0.404（global.json 允许同 feature band 的较新补丁），NuGet 还原所需网络；打包还需 Windows Desktop Runtime 10.0.15 与 Inno Setup 7。首次安装需要管理员权限，编译和纯逻辑测试不需要。

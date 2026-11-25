@@ -52,6 +52,37 @@ Snug for Windows 是 [Snug](https://github.com/zephyr4123/snug) 的独立社区 
 
 已知问题：UU iOS 端键盘收起后直接再次弹出，可能无法自动避让输入框；普通电脑屏幕也可复现。重新点击输入框后再调起键盘可恢复适配。
 
+## PowerShell 安装
+
+在 **Windows PowerShell** 中复制执行：
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $env:TEMP 'install-snug.ps1'
+Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/rizetngan/snug-for-windows/main/scripts/install-windows.ps1' -OutFile $script
+& $script
+```
+
+脚本自动下载最新稳定版安装器并验证 SHA-256，随后要求你确认已断开 UU 远程连接，才会打开官方安装程序。安装器包含签名虚拟显示驱动和捕获监视任务，需要 Windows 管理员授权；脚本不会擅自断开 UU、重启服务或关闭系统安全防护。
+
+[查看 PowerShell 安装脚本](scripts/install-windows.ps1)。仅下载并校验而不安装：将最后一行改为 `& $script -DownloadOnly`。
+
+## 使用 Agent 安装
+
+将以下整段指令复制给能够操作 Windows 电脑的 Agent，即可按正式版安装流程执行：
+
+```text
+请帮我在这台 Windows x64 电脑安装 Snug for Windows 最新稳定正式版：
+https://github.com/rizetngan/snug-for-windows
+
+1. 检查 Windows 版本及架构，仅从此仓库 GitHub Releases 选择最新稳定版的 Snug-Setup-*-x64.exe，不使用第三方镜像或源码构建代替正式安装包。
+2. 同时下载同一版本的 SHA256SUMS.txt 并验证安装器 SHA-256；校验失败停止。
+3. 检查 Snug 是否已安装，以及 UU 远程是否有正在进行的连接。升级前保留原有设置；如有 UU 会话，先提示我断开，不要擅自中断远程连接或重启 UU 服务。
+4. 说明安装程序需要管理员授权，并将安装项目自带的签名虚拟显示驱动与 SYSTEM 级 UU 捕获监视任务。获得我确认后运行官方安装器，不关闭 Windows 安全防护，也不额外安装来源不明的驱动。
+5. 安装后启动 Snug，检查应用能否正常打开、版本和手机屏设置是否可用；若尚未安装 UU 远程，请提示需要在电脑及手机端安装，而不是未经确认自行安装。
+6. 告诉我安装版本、路径、SHA-256 校验结果、启动检查结果，以及需要我手动完成的 UU 连接或系统授权操作。不删除原有用户设置。
+```
+
 ## 原生体验
 
 普通远程控制将整个 Windows 桌面缩放到手机屏幕上，小字和控件不易操作。Snug 为 UU 远程创建独立的竖屏，将正在使用的 Windows 窗口适配到手机尺寸；不用在手机上反复缩放整块桌面。
