@@ -33,3 +33,13 @@
 - Start on the camera area and swipe upward: App Library opens; no screenshot is captured.
 - Move off the camera button before release: no screenshot is captured.
 - Verify mouse and UU touch-forwarded input behave identically.
+
+## 2026-11-25 mobile iPhone screenshot: partial PhoneSurface regression
+Real VDD current mode was 1080x2088 (EnumDisplaySettings) while Screen.AllScreens
+reported 720x1392 DPI-virtualized. All WPF overlays, managed app bounds and HomeBar
+previously shared the wrong 720x1392 rectangle, leaving 1/3 of the remote canvas
+as wallpaper and exposing the secondary Windows taskbar. DisplayEnumerator
+now uses raw DEVMODE physical position and dimensions for each monitor, falling
+back only when unavailable. PhoneSurfaceWindow is elevated over the secondary
+taskbar at its native full-monitor bounds. Follow-up real UU screenshot must
+confirm browser viewport, touch mapping, screenshot button and UU native toolbar.

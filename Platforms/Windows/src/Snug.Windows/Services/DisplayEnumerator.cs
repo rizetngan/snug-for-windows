@@ -30,12 +30,29 @@ public sealed class DisplayEnumerator
                 || deviceId.Contains("ROOT\\", StringComparison.OrdinalIgnoreCase)
                 || deviceId.Contains("SWD\\", StringComparison.OrdinalIgnoreCase);
             var (scaleX, scaleY) = GetDpiScale(screen.Bounds);
+            var virtualizedBounds = new WindowBounds(
+                screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
+            var native = new NativeMethods.DEVMODE
+            {
+                Size = checked((ushort)Marshal.SizeOf<NativeMethods.DEVMODE>()),
+                DeviceName = string.Empty,
+                FormName = string.Empty
+            };
+            WindowBounds? physicalBounds = null;
+            if (NativeMethods.EnumDisplaySettings(screen.DeviceName, -1, ref native)
+                && native.PelsWidth > 0 && native.PelsHeight > 0
+                && native.PelsWidth <= 16384 && native.PelsHeight <= 16384)
+            {
+                physicalBounds = new WindowBounds(native.PositionX, native.PositionY,
+                    checked((int)native.PelsWidth), checked((int)native.PelsHeight));
+            }
+            var bounds = PhysicalDisplayBounds.Resolve(virtualizedBounds, physicalBounds);
 
             result.Add(new DisplayInfo(
                 screen.DeviceName,
                 friendly,
                 deviceId,
-                new WindowBounds(screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height),
+                bounds,
                 screen.Primary,
                 isVirtual,
                 scaleX,
