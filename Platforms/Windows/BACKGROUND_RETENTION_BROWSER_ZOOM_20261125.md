@@ -19,3 +19,13 @@ DxgKrnl output duplication stops both when UU video pauses in the iPhone backgro
 - Chrome and Edge each: place window, drag slider, +/- and reset; verify actual webpage zoom, no VDD mode changes, no input interference or unexpected focus/tab jumps.
 - Reconnect during pause; reconnect after timeout; controller process stops; incomplete ETW; physical desktop monitor remains stable.
 - Review iPhone screenshots of browser popup before release. 0.2.47 installed stable remains intact.
+
+
+## Mobile viewport adaptation
+The connected Windows UU server reports 4.48.4.6020; iPhone UU app version cannot be read from Windows. Recent iOS app notes describe adaptive occlusion avoidance, but exact UI dimensions require phone-side validation.
+
+0.2.47 uses fixed 91-point vertical insets each side. Configured iPhone 13 Pro (1170x2532 pixels, 390 logical points wide) should have native aspect 2.164; the old usable aspect is about 1.697. The currently active 820x1392 logical Snug display matches that old ratio.
+
+0.2.48 adds UU 画面比例 settings: 标准（旧版） uses 91 points each edge, 扩展画面 uses 45, 全面屏 uses 0. Identical inset controls VDD advertised modes, Window screen fit and touch scaling. A new setting applies only when a new Snug display is created, not while the existing UU-selected virtual monitor is live. Default Classic remains until real-device calibration. Use the actual iPhone viewport to choose best preset; never assume full screen is always correct.
+
+Acceptance: safely end existing managed window; disconnect UU; launch candidate, compare presets on iPhone; check fit without top/bottom cropping or black borders, correct touch targets, taskbar and HomeBar, switch primary/phone screens, browser zoom, 10s/1m/5m UU backgrounding, and Phone Screen OFF cleanup. No publish before user acceptance.

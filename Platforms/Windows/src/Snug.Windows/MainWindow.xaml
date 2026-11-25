@@ -67,6 +67,20 @@
                         <Button DockPanel.Dock="Right" Content="更改" Click="PhoneModel_Click"
                                 VerticalAlignment="Center" Padding="14,8"/>
                     </DockPanel>
+                    <DockPanel LastChildFill="False">
+                        <TextBlock Text="UU 画面比例" FontSize="14" FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox DockPanel.Dock="Right" Width="165" Height="34"
+                                  SelectedValuePath="Tag"
+                                  SelectedValue="{Binding UuViewportMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="适配新版 UU 手机工具栏和防遮挡区域；下次连接生效"
+                                  AutomationProperties.Name="UU 手机画面比例">
+                            <ComboBoxItem Content="标准（旧版）" Tag="Classic"/>
+                            <ComboBoxItem Content="扩展画面" Tag="Expanded"/>
+                            <ComboBoxItem Content="全面屏" Tag="Full"/>
+                        </ComboBox>
+                    </DockPanel>
+                    <Separator Margin="0,17" Background="#263650" Height="1"/>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
                     <DockPanel>
                         <StackPanel>

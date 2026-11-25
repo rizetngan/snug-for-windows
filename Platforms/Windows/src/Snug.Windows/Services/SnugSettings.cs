@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using Snug.Windows.Core;
 using Microsoft.Win32;
 
 namespace Snug.Windows.Services;
@@ -11,6 +12,7 @@ public sealed class SnugSettings
     public bool GesturesEnabled { get; set; } = true;
     public bool ScreenshotEnabled { get; set; }
     public int ZoomSteps { get; set; } = 2;
+    public string UuViewportMode { get; set; } = UuViewportPreset.Classic;
     public string PhoneModel { get; set; } = "Apple iPhone 17 Pro Max";
     public int PhoneScreenWidth { get; set; } = 1320;
     public int PhoneScreenHeight { get; set; } = 2868;

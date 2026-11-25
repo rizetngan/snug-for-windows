@@ -14,7 +14,7 @@ public sealed class ScreenFit
     public const double BaseHomeBarHeight = 28;
     public const double UuInset = 91;
     public const double MinRatio = 1;
-    public const double MaxRatio = 2;
+    public const double MaxRatio = 2.5;
 
     private readonly int[] _widths;
 
@@ -24,12 +24,18 @@ public sealed class ScreenFit
 
     public static ScreenFit Standard { get; } = new(PhoneChoice.Standard.Screen);
 
-    public ScreenFit(PhoneScreen phone)
+    public ScreenFit(PhoneScreen phone, int verticalInsetPoints = (int)UuInset)
     {
         ArgumentNullException.ThrowIfNull(phone);
         if (!phone.IsValid) throw new ArgumentException("手机屏幕参数无效。", nameof(phone));
+        if (verticalInsetPoints is < 0 or > 180)
+            throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
+        if (verticalInsetPoints is < 0 or > 180)
+            throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
+        if (verticalInsetPoints is < 0 or > 180)
+            throw new ArgumentOutOfRangeException(nameof(verticalInsetPoints));
         var points = phone.Points ?? AssumedPoints;
-        Ratio = Clamp((double)phone.Height / phone.Width - 2 * UuInset / points, MinRatio, MaxRatio);
+        Ratio = Clamp((double)phone.Height / phone.Width - 2 * verticalInsetPoints / points, MinRatio, MaxRatio);
         BaseWidth = Enumerable.Range(0, (MaxWidth - MinWidth) / Step + 1)
             .Select(index => MinWidth + index * Step)
             .FirstOrDefault(width => Math.Round(width * Ratio, MidpointRounding.AwayFromZero) >= MinHeight, MaxWidth);

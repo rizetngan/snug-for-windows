@@ -5,6 +5,7 @@
 - Keep an existing owned Snug display and managed window through mobile UU temporary capture suspension for up to ten minutes; returning to UU reuses the same display instead of recreating it. A background hold never creates a new display. True explicit setting-off or Snug Quit still releases the screen.
 - A capture-inactive event is not a verified UU controller exit. The fast 0.2.47 disconnect end is intentionally replaced by a background-retention timeout for the existing screen, until a trustworthy controller-level quit signal is found. Manual release via Phone Screen OFF is available.
 - Chrome and Edge: a compact browser zoom slider in the bottom HomeBar, native 50–200% stops, +/- and reset. Only the current webpage is changed when the user explicitly adjusts zoom. No DPI or display mode changes.
+- Latest UU viewport compatibility: selectable classic / expanded / fullscreen presets. Recomputes phone aspect ratio, VDD mode table, window geometry and touch scaling consistently. Presets take effect on next display creation, never destructively while connected. Classic preserves 0.2.47 geometry.
 - Preserve upstream-inspired app library, window restoration, input replay, driver safeguards, quick connect and monitor switching. iPhone acceptance pending.
 
 ## 0.2.47 — overlapping verified response windows (release)

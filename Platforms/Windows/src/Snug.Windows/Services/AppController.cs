@@ -20,7 +20,12 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     // upstream CGVirtualDisplay.reshape, the current Windows VDD cannot
     // change its mode table in-place without invalidating UU's capture.
     private PhoneChoice? _activeDisplayPhoneChoice;
+    private int? _activeDisplayInsetPoints;
+    private string _uuViewportMode = UuViewportPreset.Classic;
     private PhoneChoice CurrentDisplayChoice => _activeDisplayPhoneChoice ?? _phoneChoice;
+    private int CurrentDisplayInsetPoints => _activeDisplayInsetPoints
+        ?? UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+    private ScreenFit CurrentScreenFit => new(CurrentDisplayChoice.Screen, CurrentDisplayInsetPoints);
     private readonly UuSessionDetector _uuDetector = new();
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
@@ -89,7 +94,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public PhoneCatalog PhoneCatalog => _phoneCatalog;
     public PhoneChoice CurrentPhoneChoice => _phoneChoice;
     public string PhoneChoiceSummary => _phoneChoice.Title + "  ·  " + _phoneChoice.Screen.SizeText;
-
+    public string UuViewportMode
+    {
+        get => _uuViewportMode;
+        set
+        {
+            var normalized = UuViewportPreset.Normalize(value);
+            if (!Set(ref _uuViewportMode, normalized)) return;
+            _settings.UuViewportMode = normalized;
+            SaveSettings();
+            ActivityStatus = _phoneDisplay is null
+                ? "画面比例已更新，下次连接生效"
+                : "画面比例已保存；为避免 UU 切屏失效，下次创建手机屏时生效";
+        }
+    }
     public string ConnectionStatus { get => _connectionStatus; private set => Set(ref _connectionStatus, value); }
     public bool HasPlacedWindow => _placed is not null || _ledger.Load() is not null;
     public WindowKey? PlacedWindowKey => (_placed ?? _ledger.Load())?.Key;
@@ -108,7 +126,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         get
         {
-            var fit = new ScreenFit(CurrentDisplayChoice.Screen);
+            var fit = CurrentScreenFit;
             var size = fit.SizeFor(fit.BaseWidth);
             return new PhoneScreenSpec((int)size.Width, (int)size.Height,
                 ScreenFit.HomeBarHeight(fit.BaseWidth), 60, 2);
@@ -249,7 +267,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             _phoneChoice = PhoneChoice.Standard;
         }
-        _activeModeWidth = new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth;
+        _uuViewportMode = UuViewportPreset.Normalize(_settings.UuViewportMode);
+        _activeModeWidth = CurrentScreenFit.BaseWidth;
         _placedModeWidth = _activeModeWidth;
         _appCatalog = new AppCatalogService(_windowManager);
         _gestureHook.PlacedWindowKey = () => _placed?.Key;
@@ -927,11 +946,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private async Task<bool> ChangePhoneModeAsync(int width)
     {
-        var fit = new ScreenFit(CurrentDisplayChoice.Screen);
+        var fit = CurrentScreenFit;
         if (!fit.Widths.Contains(width) || _phoneDisplay is null) return false;
         // Windows signed VDD has a validated 20-point mode grid. Round up
         // rather than requesting one of the unsupported intermediate widths.
-        width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width);
+        width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width, CurrentDisplayInsetPoints);
         var pixels = fit.PixelSizeFor(width);
         var mode = new VddResolutionMode((int)pixels.Width, (int)pixels.Height, 60);
         await _modeGate.WaitAsync();
@@ -1006,7 +1025,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private async Task<bool> FitMovedWindowAsync(WindowInfo window)
     {
-        var fit = new ScreenFit(CurrentDisplayChoice.Screen);
+        var fit = CurrentScreenFit;
         for (var attempt = 0; attempt < 5; attempt++)
         {
             if (_phoneDisplay is not { } display) return false;
@@ -1047,7 +1066,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private async Task RestoreListModeAsync()
     {
         if (_phoneDisplay is null || !_showingPhoneList) return;
-        await ChangePhoneModeAsync(new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth);
+        await ChangePhoneModeAsync(CurrentScreenFit.BaseWidth);
     }
 
     private async Task RevealPlacedWindowAsync(WindowRestoreRecord placed)
@@ -1102,7 +1121,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 if (HasPlacedWindow) return;
             }
 
-            if (!await ChangePhoneModeAsync(new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth))
+            if (!await ChangePhoneModeAsync(CurrentScreenFit.BaseWidth))
                 return;
 
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
@@ -1266,7 +1285,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _homeBar?.SetBrowserZoomVisible(false, null);
         _browserZoomKnown = false;
         _appBackBar?.Hide();
-        if (result.Restored) _placedModeWidth = new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth;
+        if (result.Restored) _placedModeWidth = CurrentScreenFit.BaseWidth;
         if (_phoneSurface is { IsVisible: false } && _phoneDisplay is not null) _phoneSurface.Show();
         SyncGestures();
     }
@@ -1488,7 +1507,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 throw new InvalidOperationException("虚拟显示驱动安装未完成，请在设置中修复驱动。");
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
             _activeDisplayPhoneChoice = _phoneChoice;
-            _driver.WritePhoneProfile(_activeDisplayPhoneChoice);
+            _activeDisplayInsetPoints = UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+            _driver.WritePhoneProfile(_activeDisplayPhoneChoice, CurrentDisplayInsetPoints);
             if (!await ChangeOwnedDisplayAsync(true))
                 throw new InvalidOperationException("无法启动 Snug 手机屏。请在设置中修复虚拟显示驱动。");
             // Startup already verified driver readiness and the owned display.
@@ -1509,7 +1529,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
             ActivatePhoneDisplay(display);
             UuCaptureAcceptanceAudit.Record("StartPhoneSession", new { stage = "mode-start" });
-            if (await ChangePhoneModeAsync(new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth))
+            if (await ChangePhoneModeAsync(CurrentScreenFit.BaseWidth))
             {
                 DisplayStatus = $"Snug 手机屏 · {_phoneDisplay!.Bounds.Width} × {_phoneDisplay.Bounds.Height}";
                 ActivityStatus = "手机屏已就绪";
@@ -1552,7 +1572,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         }
 
         _phoneDisplay = display;
-        _activeModeWidth = new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth;
+        _activeModeWidth = CurrentScreenFit.BaseWidth;
         _placedModeWidth = _activeModeWidth;
         _showingPhoneList = true;
         _gestureHook.SetRegion(display, TouchScale());
@@ -1624,7 +1644,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     }
 
     private double TouchScale() => (double)Math.Max(1, _activeModeWidth)
-        / Math.Max(1, new ScreenFit(CurrentDisplayChoice.Screen).BaseWidth);
+        / Math.Max(1, CurrentScreenFit.BaseWidth);
 
     private void SyncGestures()
     {
@@ -1667,6 +1687,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _phoneSurface = null;
         _phoneDisplay = null;
         _activeDisplayPhoneChoice = null;
+        _activeDisplayInsetPoints = null;
         _previewOpen = false;
 
         if (_driver.IsManagedBySnug)

@@ -12,19 +12,20 @@ public static class VddResolutionProfile
 {
     public static IReadOnlyList<VddResolutionMode> Create(
         PhoneChoice choice,
-        int refreshRate = 60)
+        int refreshRate = 60,
+        int verticalInsetPoints = (int)ScreenFit.UuInset)
     {
         ArgumentNullException.ThrowIfNull(choice);
         if (refreshRate is < 1 or > 1000)
             throw new ArgumentOutOfRangeException(nameof(refreshRate));
 
-        var fit = new ScreenFit(choice.Screen);
+        var fit = new ScreenFit(choice.Screen, verticalInsetPoints);
         // Hardware-tested on this Windows 10 / signed MttVDD: 2, 5, 12 and 28
         // mode tables enumerate and switch successfully. The original 55-mode
         // table does not enumerate a monitor. Retain the upstream ScreenFit
         // algorithm, but advertise its widths every 20 points on Windows.
         // This bounds extra downscaling to <4%, versus <2% upstream.
-        return SupportedWidths(choice)
+        return SupportedWidths(choice, verticalInsetPoints)
             .Select(width => fit.PixelSizeFor(width))
             .Select(size => new VddResolutionMode(
                 checked((int)Math.Round(size.Width, MidpointRounding.AwayFromZero)),
@@ -33,26 +34,27 @@ public static class VddResolutionProfile
             .ToArray();
     }
 
-    public static IReadOnlyList<int> SupportedWidths(PhoneChoice choice)
+    public static IReadOnlyList<int> SupportedWidths(PhoneChoice choice, int verticalInsetPoints = (int)ScreenFit.UuInset)
     {
         ArgumentNullException.ThrowIfNull(choice);
-        var fit = new ScreenFit(choice.Screen);
+        var fit = new ScreenFit(choice.Screen, verticalInsetPoints);
         return fit.Widths.Where((_, index) => index % 2 == 0)
             .Append(fit.Widths[^1])
             .Distinct()
             .ToArray();
     }
 
-    public static int SnapWidth(PhoneChoice choice, int requestedWidth)
+    public static int SnapWidth(PhoneChoice choice, int requestedWidth, int verticalInsetPoints = (int)ScreenFit.UuInset)
     {
-        var supported = SupportedWidths(choice);
+        var supported = SupportedWidths(choice, verticalInsetPoints);
         return supported.FirstOrDefault(width => width >= requestedWidth, supported[^1]);
     }
 
     public static string Apply(
         string settingsXml,
         PhoneChoice choice,
-        int refreshRate = 60)
+        int refreshRate = 60,
+        int verticalInsetPoints = (int)ScreenFit.UuInset)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsXml);
         var document = XDocument.Parse(settingsXml, LoadOptions.PreserveWhitespace);
@@ -68,7 +70,7 @@ public static class VddResolutionProfile
             else global.AddAfterSelf(resolutions);
         }
 
-        resolutions.ReplaceNodes(Create(choice, refreshRate).Select(mode =>
+        resolutions.ReplaceNodes(Create(choice, refreshRate, verticalInsetPoints).Select(mode =>
             new XElement("resolution",
                 new XElement("width", mode.Width),
                 new XElement("height", mode.Height),
