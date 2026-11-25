@@ -12,6 +12,7 @@
 - Restore path first exits maximization if the original saved placement is normal, then applies saved placement and DPI-safe physical correction.
 - Content density: default auto, 600 / 720 / 840 logical width. Same pin applied to ScreenFit, VDD mode list, mode snapping and touch baseline; only effective at next display creation.
 - The Windows capture observer already tracks independent DxgKrnl contexts, not macOS SCStream. Overlap of old/new capture contexts stays positive; additional tests cover both switching orders and restart. Audio vs video stream metadata and active monitor identity are not currently available: no unverified Mac port claims.
+- HomeBar's screenshot hit region previously overlapped the full-width return/menu button at the left edge. Screenshot now requires a stationary 500 ms hold; a normal tap cannot trigger it, and an upward swipe still opens the app list. Screenshot tooltip is updated to 长按截图.
 
 ## Combined real-device acceptance
 1. Preserve installed 0.2.48 for rollback. Start 0.2.49 candidate only when UU phone display and managed-window ledger are idle.
@@ -23,3 +24,12 @@
 7. Place browser and an application with high minimum window width, then minimize, maximize and return. On Snug exit ensure original window bounds and physical desktop geometry are restored.
 8. Repeat UU remote switch between primary and virtual display; never interpret video stream overlap as a disconnection. No primary monitor resolution or refresh changes.
 9. Publish only after mobile checks pass.
+
+
+## Screenshot mis-touch acceptance
+- Tap the centered HomeBar chevron repeatedly: only the App Library opens; no screenshot is captured.
+- Tap the HomeBar camera area briefly: no screenshot is captured.
+- Hold the camera area stationary for at least 500 ms: exactly one screenshot is captured.
+- Start on the camera area and swipe upward: App Library opens; no screenshot is captured.
+- Move off the camera button before release: no screenshot is captured.
+- Verify mouse and UU touch-forwarded input behave identically.

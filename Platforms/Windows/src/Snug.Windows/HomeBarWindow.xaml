@@ -28,7 +28,7 @@
         </Button>
         <Button x:Name="CameraButton" Visibility="Collapsed" HorizontalAlignment="Left"
                 Width="64" Background="#F2F2F7" BorderThickness="0" Padding="0"
-                ToolTip="截图" AutomationProperties.Name="截图"
+                ToolTip="长按截图" AutomationProperties.Name="长按截图"
                 Click="Capture_Click">
             <Viewbox x:Name="CameraGlyph" Width="20" Height="20" Stretch="Uniform">
                 <Path Data="M 2,8 L 2,2 L 8,2 M 16,2 L 22,2 L 22,8 M 22,16 L 22,22 L 16,22 M 8,22 L 2,22 L 2,16 M 12,7 A 5,5 0 1 1 11.99,7"

@@ -11,13 +11,28 @@ namespace Snug.Windows;
 public partial class HomeBarWindow : Window
 {
     private readonly AppController _controller;
+    private readonly HomeBarCameraGesture _cameraGesture = new();
     private DisplayInfo? _targetDisplay;
+    private bool _cameraLongPressAccepted;
+    private bool _cameraKeyboardArmed;
 
     public HomeBarWindow(AppController controller)
     {
         InitializeComponent();
         _controller = controller;
         Opacity = 0;
+        CameraButton.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Enter or Key.Space) _cameraKeyboardArmed = true;
+        };
+        CameraButton.PreviewKeyUp += (_, e) =>
+        {
+            if (e.Key is Key.Enter or Key.Space)
+            {
+                _cameraLongPressAccepted = _cameraKeyboardArmed;
+                _cameraKeyboardArmed = false;
+            }
+        };
         Loaded += (_, _) => ApplyPlacement();
     }
 
@@ -106,8 +121,29 @@ public partial class HomeBarWindow : Window
 
     private async void Capture_Click(object sender, RoutedEventArgs e)
     {
+        // A normal tap on the bottom navigation must never take a screenshot.
+        // Touch/mouse activation requires a deliberate 500 ms stationary hold.
+        if (!_cameraLongPressAccepted) return;
+        _cameraLongPressAccepted = false;
         if (!_swipeActivated) await _controller.TakeScreenshotAsync();
         _swipeActivated = false;
+    }
+
+    private void BeginCameraGesture(System.Windows.Point point)
+    {
+        _cameraLongPressAccepted = false;
+        _cameraGesture.Begin(point.X, point.Y, Environment.TickCount64);
+    }
+
+    private void MoveCameraGesture(System.Windows.Point point) =>
+        _cameraGesture.Move(point.X, point.Y);
+
+    private void EndCameraGesture(System.Windows.Point point)
+    {
+        var inside = point.X >= 0 && point.X <= CameraButton.ActualWidth &&
+            point.Y >= 0 && point.Y <= ActualHeight;
+        _cameraLongPressAccepted = _cameraGesture.End(
+            point.X, point.Y, Environment.TickCount64, inside);
     }
 
     private double? _swipeStart;
@@ -135,17 +171,26 @@ public partial class HomeBarWindow : Window
 
     private void OnSwipeDown(object sender, MouseButtonEventArgs e)
     {
-        var p=e.GetPosition(this);
-        if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth) { EndSwipe(); _swipeActivated=false; return; }
+        var p = e.GetPosition(this);
+        _cameraLongPressAccepted = false;
+        if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth)
+            BeginCameraGesture(p);
+        else
+            _cameraGesture.Cancel();
         BeginSwipe(p.Y);
     }
     private void OnSwipeMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (e.LeftButton == MouseButtonState.Pressed) ContinueSwipe(e.GetPosition(this).Y);
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        var p = e.GetPosition(this);
+        if (_cameraGesture.IsActive) MoveCameraGesture(p);
+        ContinueSwipe(p.Y);
     }
     private void OnSwipeUp(object sender, MouseButtonEventArgs e)
     {
-        ContinueSwipe(e.GetPosition(this).Y);
+        var p = e.GetPosition(this);
+        if (_cameraGesture.IsActive) EndCameraGesture(p);
+        ContinueSwipe(p.Y);
         EndSwipe();
     }
 
@@ -164,14 +209,25 @@ public partial class HomeBarWindow : Window
 
     private void OnTouchDown(object sender, TouchEventArgs e)
     {
-        var p=e.GetTouchPoint(this).Position;
-        if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth) { EndSwipe(); _swipeActivated=false; return; }
+        var p = e.GetTouchPoint(this).Position;
+        _cameraLongPressAccepted = false;
+        if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth)
+            BeginCameraGesture(p);
+        else
+            _cameraGesture.Cancel();
         BeginSwipe(p.Y);
     }
-    private void OnTouchMove(object sender, TouchEventArgs e) => ContinueSwipe(e.GetTouchPoint(this).Position.Y);
+    private void OnTouchMove(object sender, TouchEventArgs e)
+    {
+        var p = e.GetTouchPoint(this).Position;
+        if (_cameraGesture.IsActive) MoveCameraGesture(p);
+        ContinueSwipe(p.Y);
+    }
     private void OnTouchUp(object sender, TouchEventArgs e)
     {
-        ContinueSwipe(e.GetTouchPoint(this).Position.Y);
+        var p = e.GetTouchPoint(this).Position;
+        if (_cameraGesture.IsActive) EndCameraGesture(p);
+        ContinueSwipe(p.Y);
         EndSwipe();
     }
 

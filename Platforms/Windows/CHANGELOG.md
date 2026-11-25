@@ -5,6 +5,7 @@
 - New 内容密度 setting: original automatic width (default), 600, 720 and 840 logical units. It changes the initial phone workspace density without changing aspect ratio. The exact VDD mode list, mode snapping, window layout and touch baseline use the same pinned setting, effective when the phone screen is next created. Active UU capture is never rebuilt just because a setting changes.
 - Windows DxgKrnl capture already tracks independent contexts; add explicit regression tests for upstream 2.8.2's old/new video capture overlap in both event orders and temporary stop/restart. Audio-only stream identity and which physical monitor UU currently streams are not exposed by the current verified Windows capture monitor; do not claim them as ported.
 - Carries forward 0.2.48 left-edge WPF browser zoom, two-second collapse, shared UU bottom safe area, Classic/Expanded/Full viewport profiles and ten-minute background hold.
+- Bottom HomeBar screenshot is now a 500 ms stationary long-press action. Short taps on the return/menu bar do not capture; movement cancels the camera gesture but preserves upward-swipe navigation. Mouse, touch, release bounds and keyboard accessibility paths are covered.
 - Candidate for end-to-end UU iPhone validation; do not publish as stable until all real-device checks pass.
 
 # Windows changelog
