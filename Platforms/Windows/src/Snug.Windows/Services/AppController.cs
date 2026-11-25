@@ -71,7 +71,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private volatile WindowRestoreRecord? _placed;
     private PhoneSurfaceWindow? _phoneSurface;
     private HomeBarWindow? _homeBar;
-    private BrowserZoomRailWindow? _browserZoomRail;
+    private ZoomRailWindow? _zoomRail;
     private AppBackBarWindow? _appBackBar;
     private bool _previewOpen;
     private bool _showingPhoneList = true;
@@ -219,7 +219,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (_screenshots.IsCropping)
             {
                 _homeBar?.Hide();
-                _browserZoomRail?.Hide();
+                _zoomRail?.Hide();
             }
             else ShowHomeBar(display);
             _screenshotPanel=new ScreenshotPanelWindow(this,shot);
@@ -903,8 +903,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _gestureHook.SetRegion(null);
         _homeBar?.Close();
         _homeBar = null;
-        _browserZoomRail?.Close();
-        _browserZoomRail = null;
+        _zoomRail?.Close();
+        _zoomRail = null;
         _appBackBar?.Close();
         _appBackBar = null;
         _phoneSurface?.Close();
@@ -1042,7 +1042,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _activeModeWidth = width;
             _phoneSurface?.PlaceOn(found);
             _homeBar?.PlaceOn(found);
-            _browserZoomRail?.PlaceOn(found);
+            _zoomRail?.PlaceOn(found);
             _appBackBar?.PlaceOn(found);
             _screenshotPanel?.PlaceOn(found);
             _gestureHook.SetRegion(found, TouchScale());
@@ -1317,7 +1317,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _askingDialogKey = null;
         ActivityStatus = result.Message;
         _homeBar?.Hide();
-        _browserZoomRail?.Hide();
+        _zoomRail?.Hide();
         _browserZoomKnown = false;
         _appBackBar?.Hide();
         if (result.Restored) _placedModeWidth = CurrentScreenFit.BaseWidth;
@@ -1340,7 +1340,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(PlacedWindowKey));
         OnPropertyChanged(nameof(PlacedAppName));
         _homeBar?.Hide();
-        _browserZoomRail?.Hide();
+        _zoomRail?.Hide();
         _appBackBar?.Hide();
         if (_phoneSurface is { } surface && _phoneDisplay is { } display)
         {
@@ -1629,17 +1629,32 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _homeBar.PlaceOn(display);
         _homeBar.Show();
         _homeBar.PlaceOn(display);
-        var isBrowser = record is not null &&
-            BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName);
-        if (isBrowser)
+
+        if (record is null)
         {
-            _browserZoomRail ??= new BrowserZoomRailWindow(this);
-            _browserZoomRail.PlaceOn(display);
-            _browserZoomRail.SetLevel(_browserZoomKnown ? _browserZoomIndex : null);
-            _browserZoomRail.Show();
-            _browserZoomRail.PlaceOn(display);
+            _zoomRail?.Hide();
+            return;
         }
-        else _browserZoomRail?.Hide();
+
+        var isBrowser = BrowserZoomLevels.IsBrowser(
+            record.ExecutablePath, record.AppName);
+        var isAppZoomable = ZoomBook.IsZoomable(
+            record.ExecutablePath, record.AppName);
+        if (!isBrowser && !isAppZoomable)
+        {
+            _zoomRail?.Hide();
+            return;
+        }
+
+        _zoomRail ??= new ZoomRailWindow(this);
+        if (isBrowser)
+            _zoomRail.SetBrowserLevel(_browserZoomKnown ? _browserZoomIndex : null);
+        else
+            _zoomRail.SetAppLevel(record.ZoomSteps);
+
+        _zoomRail.PlaceOn(display);
+        _zoomRail.Show();
+        _zoomRail.PlaceOn(display);
     }
 
     private void ShowAppBackBar(DisplayInfo display, string appName, bool canZoom, int zoomSteps)
@@ -1650,38 +1665,46 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _appBackBar.Show();
     }
 
-    public void SetCurrentBrowserZoomIndex(int index)
+    public bool SetCurrentBrowserZoomIndex(int index)
     {
         var record = _placed ?? _ledger.Load();
         if (record is null || _phoneDisplay is null || _showingPhoneList
-            || !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return;
+            || !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return false;
         index = BrowserZoomLevels.ClampIndex(index);
         var browser = new WindowInfo(record.Key, record.AppName, string.Empty,
             record.ExecutablePath, false, false);
         if (!_windowManager.ApplyBrowserZoom(browser, index))
         {
             ActivityStatus = "浏览器未响应缩放操作";
-            return;
+            return false;
         }
         _browserZoomIndex = index;
         _browserZoomKnown = true;
-        _browserZoomRail?.SetLevel(index);
+        _zoomRail?.SetBrowserLevel(index);
         ActivityStatus = $"网页缩放 {BrowserZoomLevels.PercentAt(index)}%";
+        return true;
     }
 
-    public void AdjustCurrentAppZoom(int delta)
+    public bool SetCurrentAppZoomSteps(int steps)
     {
         var record = _placed ?? _ledger.Load();
-        if (record is null || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return;
-        var next = Math.Clamp(record.ZoomSteps + delta, ZoomBook.MinimumSteps, ZoomBook.MaximumSteps);
-        if (next == record.ZoomSteps) return;
+        if (record is null || _phoneDisplay is null || _showingPhoneList
+            || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return false;
+
+        var next = Math.Clamp(steps, ZoomBook.MinimumSteps, ZoomBook.MaximumSteps);
+        var delta = next - record.ZoomSteps;
+        if (delta == 0)
+        {
+            _zoomRail?.SetAppLevel(next);
+            return true;
+        }
 
         var window = new WindowInfo(record.Key, record.AppName, string.Empty,
             record.ExecutablePath, false, false);
         if (!_windowManager.Zoom(window, delta))
         {
-            ActivityStatus = "字号调整失败，窗口保持原状";
-            return;
+            ActivityStatus = "应用未响应缩放操作，窗口保持原状";
+            return false;
         }
 
         var updated = record with { ZoomSteps = next };
@@ -1689,8 +1712,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _ledger.Save(updated);
         _zoomBook.Remember(record.ExecutablePath, record.AppName, next);
         SaveSettings();
-        _appBackBar?.SetZoomState(next);
-        ActivityStatus = $"{record.AppName} · 字号 {next:+#;-#;0} 级";
+        _zoomRail?.SetAppLevel(next);
+        ActivityStatus = $"{record.AppName} · 缩放 {next:+#;-#;0} 级";
+        return true;
+    }
+
+    public void AdjustCurrentAppZoom(int delta)
+    {
+        var record = _placed ?? _ledger.Load();
+        if (record is null) return;
+        SetCurrentAppZoomSteps(record.ZoomSteps + delta);
     }
 
     private double TouchScale() => (double)Math.Max(1, _activeModeWidth)
@@ -1731,8 +1762,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _gestureHook.SetRegion(null);
         _homeBar?.Close();
         _homeBar = null;
-        _browserZoomRail?.Close();
-        _browserZoomRail = null;
+        _zoomRail?.Close();
+        _zoomRail = null;
         _appBackBar?.Close();
         _appBackBar = null;
         _phoneSurface?.Close();
@@ -1994,7 +2025,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         UuCaptureAcceptanceAudit.Close();
         _gestureHook.Dispose();
         _homeBar?.Close();
-        _browserZoomRail?.Close();
+        _zoomRail?.Close();
         _appBackBar?.Close();
         _phoneSurface?.Close();
     }

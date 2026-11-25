@@ -1,3 +1,11 @@
+## 0.2.50 — universal touch zoom rail (candidate, 2026-11-25)
+
+- Replace the browser-only zoom rail with one shared left-edge controller for Chrome/Edge and the existing supported app set: Cursor, VS Code, Zed, Antigravity, Windows Terminal, WezTerm and Claude CLI.
+- Tap anywhere in the long vertical track to select the nearest native zoom step; press and drag continuously to preview the selected level, then apply once on release. Browser levels remain 50–200%; supported apps retain their own relative -4 to +8 levels.
+- Expand the rail to 64% of the usable phone-screen height, keep the narrow collapsed handle, retain two-second auto-collapse, outside-click dismissal and left-swipe dismissal, and add a mode-aware reset (100% for browsers, default level for apps).
+- Keep unsupported document/design applications out of the shortcut allowlist until their zoom commands are verified; WPS, Word and PDF/Adobe apps are not claimed as supported by this change.
+- Core tests: 364/364 passed. Windows Release build: 0 warnings, 0 errors. Real UU phone-side touch, drag and overlay-occlusion acceptance remains pending.
+
 ## 0.2.49 — window recovery and content density (candidate, 2026-11-25)
 
 - Window identity now wins over changed geometry when reconciling a still-live, original HWND; an incompatible process generation is rejected. A newly recreated HWND still requires matching original application path and last Snug-filled size before restoring. This follows the recovery invariant established in upstream Snug 2.9.1 (#63).

@@ -11,7 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Snug.Windows</AssemblyName>
     <RootNamespace>Snug.Windows</RootNamespace>
-    <Version>0.2.49</Version>
+    <Version>0.2.50</Version>
     <Product>Snug for Windows</Product>
     <Description>Snug — Windows platform support for the original mobile remote workspace.</Description>
     <Copyright>Copyright (c) 2026 AoyamaShou; Copyright (c) 2026 zephyr4123</Copyright>
