@@ -29,7 +29,6 @@ public sealed class DisplayEnumerator
             var isVirtual = friendly.Contains("virtual", StringComparison.OrdinalIgnoreCase)
                 || deviceId.Contains("ROOT\\", StringComparison.OrdinalIgnoreCase)
                 || deviceId.Contains("SWD\\", StringComparison.OrdinalIgnoreCase);
-            var (scaleX, scaleY) = GetDpiScale(screen.Bounds);
             var virtualizedBounds = new WindowBounds(
                 screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
             var native = new NativeMethods.DEVMODE
@@ -47,6 +46,7 @@ public sealed class DisplayEnumerator
                     checked((int)native.PelsWidth), checked((int)native.PelsHeight));
             }
             var bounds = PhysicalDisplayBounds.Resolve(virtualizedBounds, physicalBounds);
+            var (scaleX, scaleY) = GetDpiScale(bounds);
 
             result.Add(new DisplayInfo(
                 screen.DeviceName,
@@ -71,16 +71,21 @@ public sealed class DisplayEnumerator
         .ThenByDescending(display => display.Bounds.Height)
         .FirstOrDefault();
 
-    private static (double X, double Y) GetDpiScale(System.Drawing.Rectangle bounds)
+    private static (double X, double Y) GetDpiScale(WindowBounds bounds)
     {
         try
         {
+            using var dpi = new PhysicalDpiScope();
+            if (!dpi.IsValid) return (1.0, 1.0);
             var point = new NativeMethods.POINT
             {
-                X = bounds.Left + bounds.Width / 2,
-                Y = bounds.Top + bounds.Height / 2
+                X = bounds.X + bounds.Width / 2,
+                Y = bounds.Y + bounds.Height / 2
             };
             var monitor = NativeMethods.MonitorFromPoint(point, 2);
+            if (monitor != IntPtr.Zero &&
+                NativeMethods.GetScaleFactorForMonitor(monitor, out var scale) == 0 && scale >= 100)
+                return (scale / 100.0, scale / 100.0);
             if (monitor != IntPtr.Zero
                 && NativeMethods.GetDpiForMonitor(monitor, 0, out var dpiX, out var dpiY) == 0)
                 return (Math.Max(1.0, dpiX / 96.0), Math.Max(1.0, dpiY / 96.0));

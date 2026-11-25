@@ -117,6 +117,22 @@ internal static class NativeMethods
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] internal static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    // The packaged dotnet host is system-DPI aware, even when OnStartup tries
+    // to opt into per-monitor awareness. Every raw monitor rectangle must
+    // cross the native positioning boundary in an explicit physical scope.
+    internal static bool GetPhysicalWindowRect(IntPtr hWnd, out RECT rect)
+    {
+        using var dpi = new PhysicalDpiScope();
+        rect = default;
+        return dpi.IsValid && GetWindowRect(hWnd, out rect);
+    }
+    internal static bool SetPhysicalWindowPos(IntPtr hWnd, IntPtr insertAfter,
+        int x, int y, int width, int height, uint flags)
+    {
+        using var dpi = new PhysicalDpiScope();
+        return dpi.IsValid && SetWindowPos(hWnd, insertAfter, x, y, width, height, flags);
+    }
+    [DllImport("shcore.dll")] internal static extern int GetScaleFactorForMonitor(IntPtr monitor, out int scale);
     [DllImport("user32.dll")] internal static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT placement);
     [DllImport("user32.dll")] internal static extern bool SetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT placement);
     [DllImport("user32.dll")] internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);

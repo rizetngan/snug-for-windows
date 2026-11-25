@@ -119,18 +119,18 @@ public sealed class WindowManager
     {
         var handle = new IntPtr(key.Handle);
         if (!IsSameWindow(handle, key.ProcessId) || NativeMethods.IsHungAppWindow(handle)
-            || !NativeMethods.GetWindowRect(handle, out var rect))
+            || !NativeMethods.GetPhysicalWindowRect(handle, out var rect))
             return false;
 
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
         var x = phoneArea.X + Math.Max(0, (phoneArea.Width - width) / 2);
         var y = phoneArea.Y + Math.Max(0, (phoneArea.Height - height) / 2);
-        if (!NativeMethods.SetWindowPos(handle, IntPtr.Zero, x, y, width, height,
+        if (!NativeMethods.SetPhysicalWindowPos(handle, IntPtr.Zero, x, y, width, height,
                 NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW))
             return false;
 
-        return NativeMethods.GetWindowRect(handle, out var actual)
+        return NativeMethods.GetPhysicalWindowRect(handle, out var actual)
             && Math.Abs(actual.Left - x) <= 5
             && Math.Abs(actual.Top - y) <= 5;
     }
@@ -146,12 +146,12 @@ public sealed class WindowManager
         var handle = new IntPtr(key.Handle);
         if (!IsSameWindow(handle, key.ProcessId) || NativeMethods.IsHungAppWindow(handle)) return false;
         NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
-        if (!NativeMethods.SetWindowPos(handle, IntPtr.Zero, target.X, target.Y, target.Width, target.Height,
+        if (!NativeMethods.SetPhysicalWindowPos(handle, IntPtr.Zero, target.X, target.Y, target.Width, target.Height,
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW))
             return false;
 
         Thread.Sleep(180);
-        return NativeMethods.GetWindowRect(handle, out var actual)
+        return NativeMethods.GetPhysicalWindowRect(handle, out var actual)
             && Math.Abs(actual.Left - target.X) <= 3
             && Math.Abs(actual.Top - target.Y) <= 3
             && actual.Right >= target.X + Math.Min(target.Width, 540)
@@ -162,7 +162,7 @@ public sealed class WindowManager
     {
         var handle = new IntPtr(key.Handle);
         if (!IsSameWindow(handle, key.ProcessId) ||
-            !NativeMethods.GetWindowRect(handle, out var rect)) return null;
+            !NativeMethods.GetPhysicalWindowRect(handle, out var rect)) return null;
         return new WindowBounds(rect.Left, rect.Top, rect.Right - rect.Left,
             rect.Bottom - rect.Top);
     }
@@ -172,7 +172,7 @@ public sealed class WindowManager
         using var dpi = new PhysicalDpiScope();
         var handle = new IntPtr(key.Handle);
         if (!dpi.IsValid || !IsSameWindow(handle, key.ProcessId) ||
-            !NativeMethods.GetWindowRect(handle, out var rect)) return null;
+            !NativeMethods.GetPhysicalWindowRect(handle, out var rect)) return null;
         return new(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
     }
 
@@ -217,18 +217,18 @@ public sealed class WindowManager
         {
             Thread.Sleep(180);
             if (!IsSameWindow(handle, record.Key.ProcessId) ||
-                !NativeMethods.GetWindowRect(handle, out var current)) return false;
+                !NativeMethods.GetPhysicalWindowRect(handle, out var current)) return false;
             if (Math.Abs(current.Left - original.X) <= 3 &&
                 Math.Abs(current.Top - original.Y) <= 3 &&
                 Math.Abs(current.Right - current.Left - original.Width) <= 3 &&
                 Math.Abs(current.Bottom - current.Top - original.Height) <= 3)
                 return true;
-            if (!NativeMethods.SetWindowPos(handle, IntPtr.Zero, original.X, original.Y,
+            if (!NativeMethods.SetPhysicalWindowPos(handle, IntPtr.Zero, original.X, original.Y,
                 original.Width, original.Height, NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE))
                 return false;
         }
         Thread.Sleep(180);
-        return NativeMethods.GetWindowRect(handle, out var final)
+        return NativeMethods.GetPhysicalWindowRect(handle, out var final)
             && Math.Abs(final.Left - original.X) <= 3 && Math.Abs(final.Top - original.Y) <= 3
             && Math.Abs(final.Right - final.Left - original.Width) <= 3
             && Math.Abs(final.Bottom - final.Top - original.Height) <= 3;

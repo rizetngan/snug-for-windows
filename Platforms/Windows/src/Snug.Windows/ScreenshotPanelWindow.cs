@@ -46,7 +46,7 @@ internal sealed class ScreenshotPanelWindow : Window
             w=Math.Round((_shot.Kind==ShotKind.Preview?230:260)*scale);
             h=Math.Round((_shot.Kind==ShotKind.Preview?68:48)*scale);
             x=display.Bounds.X+(_shot.Kind==ShotKind.Preview?12*scale:(display.Bounds.Width-w)/2);
-            y=display.Bounds.Y+display.Bounds.Height-bar-h-8*scale;
+            y=display.Bounds.Y+display.Bounds.Height-UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width)-bar-h-8*scale;
         }
         Left=x/display.DpiScaleX; Top=y/display.DpiScaleY; Width=w/display.DpiScaleX;Height=h/display.DpiScaleY;
         // Reuse a crop view if display mode changes; its normalized selection survives.
@@ -63,9 +63,9 @@ internal sealed class ScreenshotPanelWindow : Window
             w=(int)Math.Round((_shot.Kind==ShotKind.Preview?230:260)*scale);
             h=(int)Math.Round((_shot.Kind==ShotKind.Preview?68:48)*scale);
             x=d.Bounds.X+(int)Math.Round(_shot.Kind==ShotKind.Preview?12*scale:(d.Bounds.Width-w)/2);
-            y=d.Bounds.Y+d.Bounds.Height-ScreenFit.HomeBarHeight(d.Bounds.Width)-h-(int)Math.Round(8*scale);
+            y=d.Bounds.Y+d.Bounds.Height-UuMobileOverlaySafeArea.BottomInset(d.Bounds.Width)-ScreenFit.HomeBarHeight(d.Bounds.Width)-h-(int)Math.Round(8*scale);
         }
-        NativeMethods.SetWindowPos(new WindowInteropHelper(this).Handle,new IntPtr(-1),x,y,w,h,NativeMethods.SWP_NOACTIVATE|NativeMethods.SWP_SHOWWINDOW);
+        NativeMethods.SetPhysicalWindowPos(new WindowInteropHelper(this).Handle,new IntPtr(-1),x,y,w,h,NativeMethods.SWP_NOACTIVATE|(IsVisible?NativeMethods.SWP_SHOWWINDOW:0));
     }
     protected override void OnSourceInitialized(EventArgs e)
     {

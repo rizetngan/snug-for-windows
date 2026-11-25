@@ -243,10 +243,10 @@ public partial class PhoneSurfaceWindow : Window
             // Windows secondary taskbar is also topmost. Keep the full phone
             // canvas above it, using raw physical VDD bounds (not 720x1392
             // DPI-virtualized Screen.Bounds for a 1080x2088 phone mode).
-            var placed = NativeMethods.SetWindowPos(handle, new IntPtr(-1),
+            var placed = NativeMethods.SetPhysicalWindowPos(handle, new IntPtr(-1),
                 display.Bounds.X, display.Bounds.Y,
                 display.Bounds.Width, display.Bounds.Height,
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+                NativeMethods.SWP_NOACTIVATE | (IsVisible ? NativeMethods.SWP_SHOWWINDOW : 0));
             if (!placed)
             {
                 Left = display.Bounds.X / display.DpiScaleX;

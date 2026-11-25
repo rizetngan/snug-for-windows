@@ -53,3 +53,27 @@ already used by AppController's managed-window bounds and HomeBar positioning.
 The WPF top-level window remains full VDD size and topmost so that Windows
 secondary taskbar cannot bleed through. Native UU phone overlay itself
 remains controlled by the UU app.
+
+## DPI regression: measured native geometry instead of only arithmetic
+
+The packaged dotnet/WPF process actually runs system-DPI-aware (96 DPI),
+while the Snug monitor is scaled at 150%. Raw 1080x2088 DEVMODE dimensions
+passed to unscoped SetWindowPos were scaled again: Chrome measured 1620px
+wide; HomeBar was physically at y=2853, outside the monitor. Fixed the
+native placement/read boundary using PhysicalDpiScope and the monitor's
+scale factor. Hidden overlays no longer become visible on mode placement.
+HomeBar now covers its passive UU safe footer separately from navigation
+hit targets, masking the secondary taskbar. Screenshot previews also
+respect that footer.
+
+Live Windows geometry check on the existing 1080x2088, 150%-scaled VDD:
+PhoneSurface 1080x2088; managed fixture 1080x1902; HomeBar 1080x186 at
+y=1902 (56px navigation + 130px passive footer); rail 104x107, within
+monitor; hide/re-show preserves full bounds. All measured assertions pass.
+Core tests: 355/355. This is a Windows-side fixture, not final UU touch
+or iPhone screenshot acceptance.
+
+Manual regression harness: tests/Snug.Windows.GeometryCheck. Run only
+when no UU controller is connected and an existing Snug monitor is
+available; it creates temporary non-activating test windows on that
+monitor and does not start or stop the driver.

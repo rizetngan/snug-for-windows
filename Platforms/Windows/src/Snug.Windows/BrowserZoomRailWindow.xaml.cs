@@ -133,7 +133,7 @@ public partial class BrowserZoomRailWindow : Window
         if (!IsLoaded) { Left = x / display.DpiScaleX; Top = y / display.DpiScaleY; return; }
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd != IntPtr.Zero)
-            NativeMethods.SetWindowPos(hwnd, new IntPtr(-1), x, y, w, h,
+            NativeMethods.SetPhysicalWindowPos(hwnd, new IntPtr(-1), x, y, w, h,
                 NativeMethods.SWP_NOACTIVATE |
                 (IsVisible ? NativeMethods.SWP_SHOWWINDOW : 0));
     }
@@ -216,9 +216,11 @@ public partial class BrowserZoomRailWindow : Window
 
     private bool ClickedOutside()
     {
+        using var dpi = new PhysicalDpiScope();
+        if (!dpi.IsValid) return false;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !GetCursorPos(out var cursor)
-            || !NativeMethods.GetWindowRect(hwnd, out var rect)) return false;
+            || !NativeMethods.GetPhysicalWindowRect(hwnd, out var rect)) return false;
         return cursor.X < rect.Left || cursor.X >= rect.Right
             || cursor.Y < rect.Top || cursor.Y >= rect.Bottom;
     }

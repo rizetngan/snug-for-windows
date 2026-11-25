@@ -52,10 +52,10 @@ public partial class AppBackBarWindow : Window
     {
         if (_targetDisplay is not { } display) return;
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        NativeMethods.SetWindowPos(handle, IntPtr.Zero,
+        NativeMethods.SetPhysicalWindowPos(handle, IntPtr.Zero,
             display.Bounds.X + 14, display.Bounds.Y + 14,
             ZoomControls.Visibility == Visibility.Visible ? 316 : 190, 52,
-            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | (IsVisible ? NativeMethods.SWP_SHOWWINDOW : 0));
     }
 
     protected override void OnSourceInitialized(EventArgs e)

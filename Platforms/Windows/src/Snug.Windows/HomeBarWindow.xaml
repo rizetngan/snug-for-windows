@@ -6,7 +6,12 @@
         Foreground="#73737C" FontFamily="Segoe UI">
     <!-- Upstream PhoneScreenWindows.HomeBarView: a 28-point bottom panel
          with a compact upward chevron. Only visible while an app is placed. -->
-    <Grid Background="#F2F2F7"
+    <Grid Background="#F2F2F7">
+      <Grid.RowDefinitions>
+        <RowDefinition x:Name="NavigationRow" Height="1*"/>
+        <RowDefinition x:Name="SafeFooterRow" Height="0*"/>
+      </Grid.RowDefinitions>
+      <Grid x:Name="NavigationBody" Grid.Row="0" Background="#F2F2F7"
           PreviewMouseLeftButtonDown="OnSwipeDown"
           PreviewMouseMove="OnSwipeMove"
           PreviewMouseLeftButtonUp="OnSwipeUp"
@@ -35,5 +40,9 @@
                       Stroke="#86868F" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
             </Viewbox>
         </Button>
+      </Grid>
+      <!-- Cover the native secondary taskbar without attaching navigation or
+           screenshot gestures to the UU-reserved footer. -->
+      <Border Grid.Row="1" Background="#F2F2F7" IsHitTestVisible="False"/>
     </Grid>
 </Window>

@@ -951,8 +951,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         RefreshWindows();
     }
 
-    // Screen.AllScreens returns DPI-virtualized desktop coordinates. Reserve
-    // the EXACT same bar height used by HomeBarWindow, not doubled raw pixels.
+    // DisplayInfo.Bounds is in native physical pixels. Reserve the exact
+    // HomeBar and UU footer height; all Win32 placement uses physical scope.
     private WindowBounds CurrentAppArea(DisplayInfo display) => display.Bounds with
     {
         Height = UuMobileOverlaySafeArea.ContentHeight(display.Bounds.Width, display.Bounds.Height)
@@ -1342,7 +1342,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _homeBar?.Hide();
         _browserZoomRail?.Hide();
         _appBackBar?.Hide();
-        if (_phoneSurface is { IsVisible: false }) _phoneSurface.Show();
+        if (_phoneSurface is { } surface && _phoneDisplay is { } display)
+        {
+            if (!surface.IsVisible) surface.Show();
+            surface.PlaceOn(display);
+        }
         SyncGestures();
         RefreshWindows();
         if (restoreListMode) _ = RestoreListModeAsync();
@@ -1624,6 +1628,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _homeBar.SetCameraVisible(ScreenshotEnabled);
         _homeBar.PlaceOn(display);
         _homeBar.Show();
+        _homeBar.PlaceOn(display);
         var isBrowser = record is not null &&
             BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName);
         if (isBrowser)
@@ -1632,6 +1637,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _browserZoomRail.PlaceOn(display);
             _browserZoomRail.SetLevel(_browserZoomKnown ? _browserZoomIndex : null);
             _browserZoomRail.Show();
+            _browserZoomRail.PlaceOn(display);
         }
         else _browserZoomRail?.Hide();
     }

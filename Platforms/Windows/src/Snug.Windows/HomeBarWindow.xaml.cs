@@ -43,7 +43,11 @@ public partial class HomeBarWindow : Window
         Left = 0;
         Top = 0;
         Width = display.Bounds.Width / display.DpiScaleX;
-        Height = ScreenFit.HomeBarHeight(display.Bounds.Width) / display.DpiScaleY;
+        var barHeight = ScreenFit.HomeBarHeight(display.Bounds.Width);
+        var safeFooter = UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width);
+        Height = (barHeight + safeFooter) / display.DpiScaleY;
+        NavigationRow.Height = new GridLength(barHeight, GridUnitType.Star);
+        SafeFooterRow.Height = new GridLength(safeFooter, GridUnitType.Star);
         CameraButton.Width = 54 * Math.Max(1.0, display.Bounds.Width / (double)ScreenFit.DesignWidth) / display.DpiScaleX;
         CameraGlyph.Width = CameraGlyph.Height = 20 * Math.Max(1.0, display.Bounds.Width / (double)ScreenFit.DesignWidth) / display.DpiScaleX;
         if (IsLoaded) ApplyPlacement();
@@ -58,13 +62,13 @@ public partial class HomeBarWindow : Window
             // The secondary Windows taskbar is itself topmost. The upstream
             // PhonePanel lives above the menu bar; do the same on Windows.
             // NOZORDER was keeping HomeBar *behind* Shell_SecondaryTrayWnd.
-            var placed = NativeMethods.SetWindowPos(handle, new IntPtr(-1),
+            var placed = NativeMethods.SetPhysicalWindowPos(handle, new IntPtr(-1),
                 display.Bounds.X,
                 display.Bounds.Y + display.Bounds.Height - barHeight
                     - UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width),
                 display.Bounds.Width,
-                barHeight,
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+                UuMobileOverlaySafeArea.ReservedBottom(display.Bounds.Width),
+                NativeMethods.SWP_NOACTIVATE | (IsVisible ? NativeMethods.SWP_SHOWWINDOW : 0));
             if (!placed)
                 Top = (display.Bounds.Y + display.Bounds.Height - barHeight
                     - UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width)) / display.DpiScaleY;
@@ -78,7 +82,7 @@ public partial class HomeBarWindow : Window
     {
         if (!IsLoaded || !IsVisible || _targetDisplay is null) return;
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        if (handle == IntPtr.Zero || !NativeMethods.GetWindowRect(handle, out var bar)) return;
+        if (handle == IntPtr.Zero || !NativeMethods.GetPhysicalWindowRect(handle, out var bar)) return;
 
         // Iterate only the windows above this bar, not every desktop window.
         // Never raise over another application dialog or affect the primary taskbar.
@@ -90,13 +94,13 @@ public partial class HomeBarWindow : Window
                 var className = new StringBuilder(64);
                 NativeMethods.GetClassName(node, className, className.Capacity);
                 if (className.ToString() == "Shell_SecondaryTrayWnd"
-                    && NativeMethods.GetWindowRect(node, out var tray)
+                    && NativeMethods.GetPhysicalWindowRect(node, out var tray)
                     && tray.Right > bar.Left && tray.Left < bar.Right
                     && tray.Bottom > bar.Top && tray.Top < bar.Bottom)
                 {
                     const uint noMove = 0x0002;
                     const uint noSize = 0x0001;
-                    NativeMethods.SetWindowPos(handle, new IntPtr(-1), 0, 0, 0, 0,
+                    NativeMethods.SetPhysicalWindowPos(handle, new IntPtr(-1), 0, 0, 0, 0,
                         noMove | noSize | NativeMethods.SWP_NOACTIVATE);
                     return;
                 }
@@ -141,7 +145,7 @@ public partial class HomeBarWindow : Window
     private void EndCameraGesture(System.Windows.Point point)
     {
         var inside = point.X >= 0 && point.X <= CameraButton.ActualWidth &&
-            point.Y >= 0 && point.Y <= ActualHeight;
+            point.Y >= 0 && point.Y <= NavigationBody.ActualHeight;
         _cameraLongPressAccepted = _cameraGesture.End(
             point.X, point.Y, Environment.TickCount64, inside);
     }
@@ -171,7 +175,7 @@ public partial class HomeBarWindow : Window
 
     private void OnSwipeDown(object sender, MouseButtonEventArgs e)
     {
-        var p = e.GetPosition(this);
+        var p = e.GetPosition(NavigationBody);
         _cameraLongPressAccepted = false;
         if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth)
             BeginCameraGesture(p);
@@ -182,13 +186,13 @@ public partial class HomeBarWindow : Window
     private void OnSwipeMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed) return;
-        var p = e.GetPosition(this);
+        var p = e.GetPosition(NavigationBody);
         if (_cameraGesture.IsActive) MoveCameraGesture(p);
         ContinueSwipe(p.Y);
     }
     private void OnSwipeUp(object sender, MouseButtonEventArgs e)
     {
-        var p = e.GetPosition(this);
+        var p = e.GetPosition(NavigationBody);
         if (_cameraGesture.IsActive) EndCameraGesture(p);
         ContinueSwipe(p.Y);
         EndSwipe();
@@ -209,7 +213,7 @@ public partial class HomeBarWindow : Window
 
     private void OnTouchDown(object sender, TouchEventArgs e)
     {
-        var p = e.GetTouchPoint(this).Position;
+        var p = e.GetTouchPoint(NavigationBody).Position;
         _cameraLongPressAccepted = false;
         if (CameraButton.IsVisible && p.X < CameraButton.ActualWidth)
             BeginCameraGesture(p);
@@ -219,13 +223,13 @@ public partial class HomeBarWindow : Window
     }
     private void OnTouchMove(object sender, TouchEventArgs e)
     {
-        var p = e.GetTouchPoint(this).Position;
+        var p = e.GetTouchPoint(NavigationBody).Position;
         if (_cameraGesture.IsActive) MoveCameraGesture(p);
         ContinueSwipe(p.Y);
     }
     private void OnTouchUp(object sender, TouchEventArgs e)
     {
-        var p = e.GetTouchPoint(this).Position;
+        var p = e.GetTouchPoint(NavigationBody).Position;
         if (_cameraGesture.IsActive) EndCameraGesture(p);
         ContinueSwipe(p.Y);
         EndSwipe();
