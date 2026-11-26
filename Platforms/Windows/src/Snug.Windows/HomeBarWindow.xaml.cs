@@ -87,7 +87,7 @@ public partial class HomeBarWindow : Window
         // Iterate only the windows above this bar, not every desktop window.
         // Never raise over another application dialog or affect the primary taskbar.
         var node = NativeMethods.GetWindow(handle, 3); // GW_HWNDPREV
-        for (var inspected = 0; inspected < 80 && node != IntPtr.Zero; inspected++)
+        for (var inspected = 0; inspected < 512 && node != IntPtr.Zero; inspected++)
         {
             if (NativeMethods.IsWindowVisible(node))
             {

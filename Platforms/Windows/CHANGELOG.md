@@ -1,3 +1,12 @@
+## 0.2.51 — iPhone notch safe area and app-switch taskbar recovery (candidate, 2026-11-26)
+
+- Real iPhone 13 Pro reproduction: Chrome was placed at raw Y=0 on a 1640x3170 Snug VDD, covering the notch region. The secondary Windows taskbar can also overtake the HomeBar after switching applications.
+- Apply a single physically measured, DPI-safe app rectangle on every window pull, resize and same-session re-entry. Its top inset follows the iPhone 13 Pro 47pt / 390pt notch ratio; existing UU/HomeBar bottom reserves are retained.
+- Add one non-activating, reusable top-safe overlay only while an app is placed; hide it in the Snug app catalog and close it when the phone display session ends. No extra labels or controls.
+- Repair bottom HomeBar z-order again after the new app receives focus and after the WPF presentation frame, alongside the existing periodic secondary-taskbar guard.
+- Baseline 1640x3170 virtual display: Chrome changes from (1920,0,1640,2949) to (1920,198,1640,2751), preserving its existing bottom boundary at Y=2949 while moving its tabs out of the notch. HomeBar covers the remaining bottom through Y=3170.
+- Tests: 371/371 core tests pass; Release solution build succeeds with 0 warnings and 0 errors.
+- Candidate only: real iPhone verification of multiple app switches, notch clearance, secondary-taskbar occlusion, zoom rail and clean disconnect is still required. Keep 0.2.50 as the accepted stable baseline until that passes.
 ## 0.2.50 — universal touch zoom rail (candidate, 2026-11-25)
 
 - Replace the browser-only zoom rail with one shared left-edge controller for Chrome/Edge and the existing supported app set: Cursor, VS Code, Zed, Antigravity, Windows Terminal, WezTerm and Claude CLI.

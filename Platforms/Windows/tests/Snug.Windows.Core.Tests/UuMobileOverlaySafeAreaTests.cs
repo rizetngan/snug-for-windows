@@ -28,6 +28,41 @@ public sealed class UuMobileOverlaySafeAreaTests
     }
 
     [Theory]
+    [InlineData(1080, 130)]
+    [InlineData(1640, 198)]
+    [InlineData(2160, 260)]
+    public void IPhoneNotchReceivesPhysicalTopSafeInset(double width, int expected)
+    {
+        Assert.Equal(expected, UuMobileOverlaySafeArea.TopInset(width));
+    }
+
+    [Theory]
+    [InlineData(1080, 2088)]
+    [InlineData(1640, 3170)]
+    [InlineData(2160, 4176)]
+    public void ManagedAppStaysBelowNotchAndAboveBottomControls(int width, int height)
+    {
+        var screen = new WindowBounds(1920, 0, width, height);
+        var area = UuMobileOverlaySafeArea.AppBounds(screen);
+        Assert.Equal(screen.X, area.X);
+        Assert.Equal(screen.Y + UuMobileOverlaySafeArea.TopInset(width), area.Y);
+        Assert.Equal(screen.Width, area.Width);
+        Assert.Equal(screen.Height - UuMobileOverlaySafeArea.ReservedBottom(width),
+            area.Y + area.Height - screen.Y);
+        Assert.True(area.Height > 200);
+    }
+
+    [Fact]
+    public void IPhone13ProRawModeProvidesTopAndBottomProtection()
+    {
+        var area = UuMobileOverlaySafeArea.AppBounds(
+            new WindowBounds(1920, 0, 1640, 3170));
+        Assert.Equal(new WindowBounds(1920, 198, 1640, 2751), area);
+        Assert.Equal(2949, area.Y + area.Height);
+        Assert.Equal(0, UuMobileOverlaySafeArea.TopInset(0));
+    }
+
+    [Theory]
     [InlineData(1080, 540, 65)]
     [InlineData(720, 540, 64.5)]
     [InlineData(540, 540, 65)]

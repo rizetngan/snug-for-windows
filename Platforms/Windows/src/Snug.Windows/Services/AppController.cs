@@ -71,6 +71,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private volatile WindowRestoreRecord? _placed;
     private PhoneSurfaceWindow? _phoneSurface;
     private HomeBarWindow? _homeBar;
+    private PhoneNotchGuardWindow? _notchGuard;
     private ZoomRailWindow? _zoomRail;
     private AppBackBarWindow? _appBackBar;
     private bool _previewOpen;
@@ -901,6 +902,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         _gestureHook.Stop();
         _gestureHook.SetRegion(null);
+        _notchGuard?.Close();
+        _notchGuard = null;
         _homeBar?.Close();
         _homeBar = null;
         _zoomRail?.Close();
@@ -953,10 +956,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     // DisplayInfo.Bounds is in native physical pixels. Reserve the exact
     // HomeBar and UU footer height; all Win32 placement uses physical scope.
-    private WindowBounds CurrentAppArea(DisplayInfo display) => display.Bounds with
-    {
-        Height = UuMobileOverlaySafeArea.ContentHeight(display.Bounds.Width, display.Bounds.Height)
-    };
+    private WindowBounds CurrentAppArea(DisplayInfo display) => UuMobileOverlaySafeArea.AppBounds(display.Bounds);
 
     /// <summary>Only the Snug-owned monitor may change, and only to a VDD-advertised mode.</summary>
     private async Task<bool> ChangeOwnedDisplayAsync(bool start)
@@ -1041,6 +1041,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _availableSnugDisplay = found;
             _activeModeWidth = width;
             _phoneSurface?.PlaceOn(found);
+            _notchGuard?.PlaceOn(found);
             _homeBar?.PlaceOn(found);
             _zoomRail?.PlaceOn(found);
             _appBackBar?.PlaceOn(found);
@@ -1122,6 +1123,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _appBackBar?.Hide();
         ShowHomeBar(display);
         _windowManager.Focus(placed.Key);
+        _homeBar?.EnsureAboveTaskbar();
     }
 
     public Task PullWindowAsync(WindowInfo window, bool preview) =>
@@ -1316,6 +1318,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (result.Restored && _askingDialogKey == record.Key)
             _askingDialogKey = null;
         ActivityStatus = result.Message;
+        _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
         _browserZoomKnown = false;
@@ -1339,6 +1342,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _screenshots.Dismiss();
         OnPropertyChanged(nameof(PlacedWindowKey));
         OnPropertyChanged(nameof(PlacedAppName));
+        _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
         _appBackBar?.Hide();
@@ -1623,12 +1627,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private void ShowHomeBar(DisplayInfo display)
     {
         if (_screenshots.IsCropping) return;
+        _notchGuard ??= new PhoneNotchGuardWindow();
+        _notchGuard.PlaceOn(display);
+        if (!_notchGuard.IsVisible) _notchGuard.Show();
+        _notchGuard.PlaceOn(display);
         _homeBar ??= new HomeBarWindow(this);
         var record = _placed ?? _ledger.Load();
         _homeBar.SetCameraVisible(ScreenshotEnabled);
         _homeBar.PlaceOn(display);
         _homeBar.Show();
         _homeBar.PlaceOn(display);
+        // Application activation can promote Windows secondary taskbar after layout.
+        // Reassert the navigation/footer overlay once WPF has finished this frame.
+        _homeBar.Dispatcher.BeginInvoke(() => _homeBar?.EnsureAboveTaskbar(),
+            System.Windows.Threading.DispatcherPriority.ContextIdle);
 
         if (record is null)
         {
@@ -1760,6 +1772,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         _gestureHook.Stop();
         _gestureHook.SetRegion(null);
+        _notchGuard?.Close();
+        _notchGuard = null;
         _homeBar?.Close();
         _homeBar = null;
         _zoomRail?.Close();
@@ -2024,6 +2038,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _uuDetector.Dispose();
         UuCaptureAcceptanceAudit.Close();
         _gestureHook.Dispose();
+        _notchGuard?.Close();
         _homeBar?.Close();
         _zoomRail?.Close();
         _appBackBar?.Close();
