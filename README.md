@@ -8,7 +8,7 @@
 
 为 UU 远程打造 · 独立竖屏 · 原生触控 · App 资源库
 
-![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.48-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.51-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 简体中文 · [English](README.en.md)
 
@@ -44,11 +44,11 @@ Snug for Windows 是 [Snug](https://github.com/zephyr4123/snug) 的独立社区 
 
 ## 下载安装
 
-**0.2.48 正式发布版** · Windows x64（Windows 10 22H2 已实测）
+**0.2.51 正式发布版** · Windows x64（Windows 10 22H2 已实测）
 
-**[下载安装包（Windows x64）](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/Snug-Setup-0.2.48-x64.exe)** · [发布说明](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.48) · [SHA-256 校验](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/SHA256SUMS.txt) · [从源码构建](Platforms/Windows/README.md#构建与打包)
+**[下载安装包（Windows x64）](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.51/Snug-Setup-0.2.51-x64.exe)** · [发布说明](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.51) · [SHA-256 校验](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.51/SHA256SUMS.txt) · [从源码构建](Platforms/Windows/README.md#构建与打包)
 
-安装包：Snug-Setup-0.2.48-x64.exe。新增左侧竖向网页缩放条、自动收起、UU 底部菜单安全区和手机后台切换后的虚拟屏保留；提供标准／扩展／全面屏三档画面比例。325项核心测试通过。若 UU 主动断开后需要立即释放虚拟屏，请关闭 Snug「手机屏」或退出 Snug；后台保留最长约10分钟。安装需正常 Windows 管理员授权。
+安装包：Snug-Setup-0.2.51-x64.exe。新增 iPhone 刘海顶部安全区、反复切换应用后的底部任务栏层级恢复，以及可用于 Chrome/Edge、Cursor、VS Code、Antigravity 等已支持应用的左侧缩放轨道。保留 UU 底部操作区、三档画面比例和最长约10分钟的后台保留；371项核心测试通过。需要立即释放虚拟屏时，请关闭 Snug「手机屏」或退出 Snug。安装需正常 Windows 管理员授权。
 
 已知问题：UU iOS 端键盘收起后直接再次弹出，可能无法自动避让输入框；普通电脑屏幕也可复现。重新点击输入框后再调起键盘可恢复适配。
 

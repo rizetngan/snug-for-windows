@@ -2,9 +2,11 @@
 
 [简体中文](README.md) · [English](README.en.md) · [Project home](../../README.en.md)
 
-Snug enhances display and touch interaction for UU Remote. This community contribution adds Windows support to [Snug](https://github.com/zephyr4123/snug) 2.5.0, preserving the original App Library, phone workspace, window restoration, gestures and screenshot workflow alongside macOS. Windows 0.2.48 is an independently maintained release; upstream has explicitly declined to merge the Windows port, so Windows support will continue on a separate maintenance track.
+Snug enhances display and touch interaction for UU Remote. This community contribution adds Windows support to [Snug](https://github.com/zephyr4123/snug) 2.5.0, preserving the original App Library, phone workspace, window restoration, gestures and screenshot workflow alongside macOS. Windows 0.2.51 is an independently maintained release; upstream has explicitly declined to merge the Windows port, so Windows support will continue on a separate maintenance track.
 
-Version 0.2.48 adds a bottom UU phone-safe area, a Chrome/Edge left-side zoom rail, up to ten minutes of background phone-display retention and Classic/Expanded/Full viewport calibration. The same inset applies to Snug's navigation and managed app content. See the [illustrated 0.2.48 guide](../../docs/0.2.48/README.md). For immediate release after UU disconnect, turn Phone Screen OFF.
+Version 0.2.48 adds a bottom UU phone-safe area, a Chrome/Edge left-side zoom rail, up to ten minutes of background phone-display retention and Classic/Expanded/Full viewport calibration. The same inset applies to Snug's navigation and managed app content. See the [illustrated 0.2.48 guide](../../docs/0.2.48/README.md).
+
+**0.2.51:** Adds an iPhone 13 Pro notch top safe area, repositions windows and the bottom HomeBar after app switches, and extends the left-edge zoom rail to more supported apps. For immediate release after UU disconnect, turn Phone Screen OFF.
 
 
 ## Installation and usage
@@ -45,7 +47,7 @@ SDK resolution: SNUG_DOTNET_ROOT, .tools/dotnet, DOTNET_ROOT, standard Program F
     .\build-snug.cmd
     .\package-snug.cmd
 
-The output is artifacts/installer/Snug-Setup-0.2.38-x64.exe. The installer bundles the pinned runtime and signed VDD; the installer itself is not signed. The app-scoped legacy CET compiler bridge preserves the SDK binaries and system security settings. On supported systems, -p:SnugUseLegacyWindowsCETWorkaround=false uses the native SDK compiler.
+The output is artifacts/installer/Snug-Setup-0.2.51-x64.exe. The installer bundles the pinned runtime and signed VDD; the installer itself is not signed. The app-scoped legacy CET compiler bridge preserves the SDK binaries and system security settings. On supported systems, -p:SnugUseLegacyWindowsCETWorkaround=false uses the native SDK compiler.
 
 ## Architecture
 

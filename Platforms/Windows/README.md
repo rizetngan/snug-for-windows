@@ -2,9 +2,11 @@
 
 [简体中文](README.md) · [English](README.en.md) · [项目主页](../../README.md)
 
-Snug 为 UU远程 提供手机原生级的显示与触控体验。本贡献在 [原项目](https://github.com/zephyr4123/snug) 2.5.0 基础上新增 Windows 平台支持，延续原版 App 资源库、手机屏、窗口还原、触控与截图交互，保留 macOS 实现及原有版权。Windows 0.2.48 为独立维护的正式发布版；上游已明确暂不合并 Windows 移植，Windows 平台后续按独立维护路线推进。
+Snug 为 UU远程 提供手机原生级的显示与触控体验。本贡献在 [原项目](https://github.com/zephyr4123/snug) 2.5.0 基础上新增 Windows 平台支持，延续原版 App 资源库、手机屏、窗口还原、触控与截图交互，保留 macOS 实现及原有版权。Windows 0.2.51 为独立维护的正式发布版；上游已明确暂不合并 Windows 移植，Windows 平台后续按独立维护路线推进。
 
 0.2.48 新增 UU 手机端底部安全区、Chrome/Edge 左侧网页缩放浮条、最长10分钟的手机屏后台保留，以及标准／扩展／全面屏比例校准。新底部安全区会同时调整 Snug 导航和被管理的应用窗口，避免与 UU 原生操作栏重叠。手机主动断开后如需立即释放，可在 Snug 关闭「手机屏」。详见 [0.2.48 图文产品说明](../../docs/0.2.48/README.md)。
+
+**0.2.51 更新：** 支持 iPhone 13 Pro 刘海顶部安全区、切换应用时重新校正窗口铺放和底部工具栏层级；左侧缩放轨道兼容更多已支持应用。
 
 
 ## 使用
@@ -49,7 +51,7 @@ PowerShell 示例：
     .\build-snug.cmd
     .\package-snug.cmd
 
-输出：artifacts/installer/Snug-Setup-0.2.38-x64.exe。安装包内置指定 .NET runtime，无需目标电脑另外安装 SDK。驱动分发许可、版本及校验见 installer/THIRD_PARTY_NOTICES.md；安装器本身尚未签名。支持 CET 的系统可用 -p:SnugUseLegacyWindowsCETWorkaround=false 使用 SDK 原生编译路径。
+输出：artifacts/installer/Snug-Setup-0.2.51-x64.exe。安装包内置指定 .NET runtime，无需目标电脑另外安装 SDK。驱动分发许可、版本及校验见 installer/THIRD_PARTY_NOTICES.md；安装器本身尚未签名。支持 CET 的系统可用 -p:SnugUseLegacyWindowsCETWorkaround=false 使用 SDK 原生编译路径。
 
 ## 架构
 
@@ -59,7 +61,7 @@ PowerShell 示例：
 
 ## 已验证与限制
 
-- 268 项核心测试通过；真实 Windows 测试涵盖窗口搬运/恢复、VS Code 跨进程字号恢复、Chrome 标签及双轴滚动、资源库拖动、强制退出、独立窗口截图和裁剪。
+- 371 项核心测试通过（0.2.51）；真实 Windows 测试涵盖窗口搬运/恢复、VS Code 跨进程字号恢复、Chrome 标签及双轴滚动、资源库拖动、强制退出、独立窗口截图和裁剪。
 - 菜单惯性经过真实 WPF 定时器测试；真实 iPhone 上的手机屏退出/重新进入及 UU 断开后的窗口还原、虚拟屏释放已验收。截图裁剪后的原生剪贴板写入和完整手势矩阵仍待验收。
 - Windows 使用固定的 VDD 支持模式，动态宽度步长为 20 点；多物理屏恢复、部分应用字号、跨虚拟桌面、GPU/受保护窗口的截图兼容仍待测试。
 - Windows UU 会话判定采用多信号融合：可见浮动窗口、本机被控设备 UIA 表格、当前推流日志及 SYSTEM ETW 捕获清单；远程 TCP 对端仅作为诊断上下文，不再作为会话存在证据，80/443 连接不会延长会话。设备类型和实际推流显示器身份仍未知。

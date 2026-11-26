@@ -8,7 +8,7 @@
 
 Built for UU Remote · Dedicated portrait display · Native gestures · App Library
 
-![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.48-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+![Windows x64](https://img.shields.io/badge/Windows-x64-blue) ![Release](https://img.shields.io/badge/version-0.2.51-blue) [![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 [简体中文](README.md) · English
 
@@ -44,11 +44,11 @@ Snug for Windows is an independent community port of [Snug](https://github.com/z
 
 ## Download
 
-**0.2.48 release** · Windows x64 (tested on Windows 10 22H2).
+**0.2.51 release** · Windows x64 (tested on Windows 10 22H2).
 
-**[Download installer (Windows x64)](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/Snug-Setup-0.2.48-x64.exe)** · [Release notes](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.48) · [SHA-256 checksums](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.48/SHA256SUMS.txt) · [Build from source](Platforms/Windows/README.en.md)
+**[Download installer (Windows x64)](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.51/Snug-Setup-0.2.51-x64.exe)** · [Release notes](https://github.com/rizetngan/snug-for-windows/releases/tag/v0.2.51) · [SHA-256 checksums](https://github.com/rizetngan/snug-for-windows/releases/download/v0.2.51/SHA256SUMS.txt) · [Build from source](Platforms/Windows/README.en.md)
 
-Installer: Snug-Setup-0.2.48-x64.exe. Adds a one-handed left-edge Chrome/Edge zoom rail, a mobile-safe area above UU's bottom toolbar, a ten-minute hold of an existing phone display while capture is paused, and Classic/Expanded/Full viewport presets. Explicit UU disconnect may also retain the screen until timeout; turn Phone Screen OFF or quit Snug for immediate release. 325 automated tests passed. Install with standard Windows UAC approval.
+Installer: Snug-Setup-0.2.51-x64.exe. Adds a top safe area for the iPhone notch and keeps Snug navigation above the Windows secondary taskbar when switching apps. Expands the left-edge zoom rail to supported apps including Chrome/Edge, Cursor, VS Code and Antigravity. Retains UU bottom controls, three viewport presets and up to ten minutes of phone-display background hold. Turn Phone Screen OFF or quit Snug to release immediately. 371 automated tests passed. Standard Windows UAC approval is required to install.
 
 Known issue: reopening the UU iOS keyboard without tapping the remote input again may fail to pan the viewport. This also reproduces on the normal computer screen; tap the input again before opening the keyboard.
 
