@@ -17,6 +17,7 @@
     <Copyright>Copyright (c) 2026 AoyamaShou; Copyright (c) 2026 zephyr4123</Copyright>
     <RepositoryUrl>https://github.com/rizetngan/snug-for-windows</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupObject>Snug.Windows.Program</StartupObject>
     <ApplicationIcon>Snug.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
