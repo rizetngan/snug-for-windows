@@ -77,8 +77,6 @@ if not exist "%CSC%" (
 )
 "%CSC%" /nologo /target:winexe /platform:anycpu /optimize+ /reference:"%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\System.Windows.Forms.dll" /out:"%PACKAGE%\SnugLauncher.exe" "%SNUG_ROOT%tools\SnugLauncher.cs"
 if errorlevel 1 exit /b %errorlevel%
-"%CSC%" /nologo /target:exe /platform:anycpu /optimize+ /out:"%PACKAGE%\SnugZoomHost.exe" "%SNUG_ROOT%tools\SnugZoomHost.cs"
-if errorlevel 1 exit /b %errorlevel%
 
 if not exist "%SNUG_ROOT%artifacts\installer" mkdir "%SNUG_ROOT%artifacts\installer"
 set "ISCC=%SNUG_ISCC%"

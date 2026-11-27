@@ -38,7 +38,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
     private readonly PhoneDisplayHold _displayHold = new();
-    private readonly BrowserZoomBridge _browserZoomBridge = new();
     private BrowserZoomObservation? _browserZoomObservation;
     private WindowKey? _browserZoomWindow;
     private DateTimeOffset _browserZoomSession;
@@ -380,16 +379,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public void Start()
     {
         _startedAt = DateTimeOffset.UtcNow;
-        try
-        {
-            BrowserZoomBridge.RegisterInstalledHost();
-            _browserZoomBridge.Start();
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException
-            or System.Security.SecurityException)
-        {
-            ActivityStatus = "浏览器缩放桥接不可用，将使用相对缩放";
-        }
         Refresh();
         _startupRecoveryPending = _ledger.Load() is not null;
         _ = LoadInstalledAppsAsync();
@@ -1854,10 +1843,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName))
         {
             var actual = CurrentBrowserObservation(record);
-            return actual is null ? null : new(record.Key, record.CapturedAt, actual.TabIdentity, true, actual.Percent);
+            return actual is null ? null : new(record.Key, record.CapturedAt, actual.TabIdentity, true);
         }
         return ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)
-            ? new(record.Key, record.CapturedAt, null, false, null) : null;
+            ? new(record.Key, record.CapturedAt, null, false) : null;
     }
 
     public void RefreshBrowserZoom(bool force = false)
@@ -1885,8 +1874,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         try
         {
-            var actual = await _browserZoomBridge.ReadAsync(record.Key, record.CapturedAt, record.ExecutablePath);
-            actual ??= await Task.Run(() => BrowserZoomReader.Read(record.Key));
+            var actual = await Task.Run(() => BrowserZoomReader.Read(record.Key));
             if (epoch != _browserZoomEpoch || _zoomCommandRunning || _disposed ||
                 _showingPhoneList || _placed is not { } current ||
                 current.Key != record.Key || current.CapturedAt != record.CapturedAt) return;
@@ -1919,24 +1907,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                     // Discard any read that was already in flight before this command.
                     _browserZoomEpoch++;
                     var relative = BrowserZoomLevels.StepsFromDefault(selectedValue);
-                    BrowserZoomObservation? confirmed = null;
-                    if (BridgeTabToken.TryParse(target.TabIdentity, out _))
-                    {
-                        confirmed = await _browserZoomBridge.ApplyAsync(target, selectedValue, reset);
-                        applied = confirmed is not null;
-                    }
-                    else
-                        applied = await Task.Run(() => _windowManager.ApplyBrowserRelativeZoom(
-                            window, target.TabIdentity, relative, reset));
+                    applied = await Task.Run(() => _windowManager.ApplyBrowserRelativeZoom(window, target.TabIdentity, relative, reset));
 
                     if (ZoomSessionMatches(target))
                     {
-                        // Only a browser API reply for the bound tab is actual zoom evidence.
-                        // Sending a keyboard shortcut alone never establishes a percentage.
-                        _browserZoomObservation = confirmed;
-                        _browserZoomReadAt = confirmed is null ? default : DateTimeOffset.UtcNow;
-                        _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, confirmed);
-                        ActivityStatus = applied ? "已调整当前网页缩放" : "当前标签页或窗口已变化，或缩放连接不可用";
+                        // Native input never establishes an absolute percentage.
+                        // Drop the previous observation until the selected tab is read again.
+                        _browserZoomObservation = null;
+                        _browserZoomReadAt = default;
+                        _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, null);
+                        ActivityStatus = applied ? "已调整当前网页缩放" : "当前标签页或窗口已变化，未执行完整缩放";
                     }
                 }
                 else
@@ -1970,8 +1950,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (GetCurrentZoomTarget() is { } target)
         {
             var value = target.IsBrowser
-                ? BrowserZoomLevels.ClampIndex((target.BrowserPercent is int percent
-                    ? ZoomContext.TrackIndex(percent) : BrowserZoomLevels.DefaultIndex) + delta)
+                ? BrowserZoomLevels.ClampIndex(BrowserZoomLevels.DefaultIndex + delta)
                 : delta;
             _ = ApplyZoomGestureAsync(target, value);
         }
@@ -2233,7 +2212,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _browserZoomBridge.Dispose();
         _screenshots.Changed -= SyncScreenshotOverlay;
         _screenshots.Dismiss();
         _screenshotPanel?.Close();

@@ -46,7 +46,7 @@ internal static class BrowserZoomReader
                         node.Element.TryGetCurrentPattern(SelectionItemPattern.Pattern, out var pattern) &&
                         pattern is SelectionItemPattern item && item.Current.IsSelected &&
                         node.Element.GetRuntimeId() is { Length: > 0 } id)
-                        return new("native:" + string.Join(":", id), null);
+                        return new("native:" + string.Join(":", id));
                     continue;
                 }
                 if (node.Depth >= 16 || type == ControlType.Document ||

@@ -1,3 +1,11 @@
+## 0.2.54 — native-only context zoom (candidate, 2026-11-27)
+
+- Remove the browser extension, Native Messaging relay and packaging dependencies. Chrome/Edge use Windows UI Automation only to identify the selected tab, never to infer its percentage.
+- Use neutral-centred relative zoom gestures with native shortcuts; reset uses the browser's configured default. Recheck selected tab and foreground window before each step. Never replay or display a previous tab's absolute percentage.
+- Preserve the phone safe areas, layout reconciliation and full-track touch controls. Upgrading from 0.2.53 removes its obsolete bundled companion files.
+
+- Verification: 398 core tests passed; Chrome and Edge with extensions disabled independently verified A=200%, B=100%, rejected stale A gestures, adjusted B=110%, preserved A, and restored A to its native default. Both browsers passed after dismissing an isolated Edge update dialog. Installer built without the companion. iPhone UU acceptance remains pending.
+
 ## 0.2.53 — context-aware zoom (candidate, 2026-11-27)
 
 - Real Chrome 158 test reproduced stale native UIA zoom tooltip: tab A had 200%, tab B's independently measured page pixel ratio was 100%, but UIA reported 200% on B. UIA is no longer used as a zoom-value source.

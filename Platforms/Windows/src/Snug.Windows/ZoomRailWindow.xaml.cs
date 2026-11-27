@@ -35,7 +35,6 @@ public partial class ZoomRailWindow : Window
     private int _minimum = 0;
     private int _maximum = BrowserZoomLevels.Percents.Length - 1;
     private int _selectedValue = BrowserZoomLevels.DefaultIndex;
-    private BrowserZoomObservation? _browserObservation;
     private ZoomTarget? _displayedTarget;
     private ZoomTarget? _dragTarget;
     private bool _commitPending;
@@ -83,34 +82,29 @@ public partial class ZoomRailWindow : Window
     public void SetBrowserState(WindowKey window, DateTimeOffset session, BrowserZoomObservation? observation)
     {
         var target = observation is null ? null :
-            new ZoomTarget(window, session, observation.TabIdentity, true, observation.Percent);
+            new ZoomTarget(window, session, observation.TabIdentity, true);
         if (_dragging && _dragTarget?.SameScope(target) != true) CancelDrag();
         _mode = ZoomMode.Browser;
         _minimum = 0;
         _maximum = BrowserZoomLevels.Percents.Length - 1;
         _displayedTarget = target;
-        _browserObservation = observation;
         if (!_dragging) ResetTrackFromObservation();
     }
 
     public void SetAppRelative(WindowKey window, DateTimeOffset session)
     {
-        var target = new ZoomTarget(window, session, null, false, null);
+        var target = new ZoomTarget(window, session, null, false);
         if (_dragging && _dragTarget?.SameScope(target) != true) CancelDrag();
         _mode = ZoomMode.Application;
         _minimum = ZoomBook.MinimumSteps;
         _maximum = -ZoomBook.MinimumSteps; // Relative gestures have a neutral centre.
         _displayedTarget = target;
-        _browserObservation = null;
         if (!_dragging) ResetTrackFromObservation();
     }
 
     private void ResetTrackFromObservation()
     {
-        _selectedValue = _mode == ZoomMode.Browser
-            ? _browserObservation?.Percent is int percent
-                ? ZoomContext.TrackIndex(percent) : BrowserZoomLevels.DefaultIndex
-            : 0;
+        _selectedValue = _mode == ZoomMode.Browser ? BrowserZoomLevels.DefaultIndex : 0;
         RefreshText();
         UpdateTrackVisual();
     }
@@ -121,16 +115,11 @@ public partial class ZoomRailWindow : Window
     {
         if (_mode == ZoomMode.Browser)
         {
-            var observedLabel = _browserObservation?.Label ?? "缩放";
-            ExpandButton.ToolTip = _browserObservation?.Percent.HasValue == true
-                ? "当前标签页实际缩放倍率"
-                : "相对缩放；安装 Snug Browser Zoom 扩展后显示实际倍率";
+            ExpandButton.ToolTip = "相对调整当前标签页缩放";
             LargeValue.Text = _dragging
-                ? _dragTarget?.BrowserPercent.HasValue == true
-                    ? $"{BrowserZoomLevels.PercentAt(_selectedValue)}%"
-                    : RelativeLabel(BrowserZoomLevels.StepsFromDefault(_selectedValue))
-                : observedLabel;
-            CompactValue.Text = observedLabel;
+                ? RelativeLabel(BrowserZoomLevels.StepsFromDefault(_selectedValue))
+                : "缩放";
+            CompactValue.Text = "缩放";
             ResetLabel.Text = "默认";
             ResetButton.Visibility = Visibility.Visible;
             ResetButton.IsEnabled = _displayedTarget is not null && !_commitPending;
