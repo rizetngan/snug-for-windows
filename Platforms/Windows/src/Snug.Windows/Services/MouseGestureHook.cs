@@ -10,7 +10,7 @@ namespace Snug.Windows.Services;
 public sealed class MouseGestureHook : IDisposable
 {
     private static readonly UIntPtr InjectionMarker = new(0x534E5547);
-    private static readonly UIntPtr CrossDeskMarker = new(0x4353444D); // CSDM
+    private static readonly UIntPtr CrossDeskMarker = new(0x4353444D); // CrossDesk kInjectedMouseInputMarker (CSDM)
     private readonly NativeMethods.LowLevelMouseProc _callback;
     private readonly Dispatcher _uiDispatcher;
     private MouseReplayLane? _replay;

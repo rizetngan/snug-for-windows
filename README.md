@@ -26,6 +26,17 @@
 
 Snug for Windows 是 [Snug](https://github.com/zephyr4123/snug) 的独立社区 Windows 移植项目，由 [rizetngan](https://github.com/rizetngan) 维护。基于 Snug 2.5.0，使用 C# / .NET 10 / WPF。macOS 用户请前往上游原项目。
 
+## 0.3.0 候选版 · CrossDesk + 无扩展缩放
+
+同一个 Snug 手机工作区现在可以接入 UU Remote 或 CrossDesk。CrossDesk 模式由 Windows 运行主机、Android 运行控制端；Snug 负责竖屏工作区、窗口管理和触控映射。
+
+- 浏览器缩放不再需要扩展、Native Messaging 或本地通信宿主
+- CrossDesk 点击、滑动、长按和滚动接入共享触控内核
+- UU 可选机型自动匹配及手机 / 平板通用比例预设
+
+![Snug 0.3.0 架构](docs/0.3.0/media/architecture.svg)
+
+[查看 0.3.0 图文说明](docs/0.3.0/README.md) · 当前为候选版，真实 CrossDesk 手机连接和 UU 回归尚在最终验收；0.2.51 仍为当前稳定版本。
 ## 0.2.48 · 手机上的顺手细节
 
 ![单手浏览器缩放](docs/0.2.48/media/side-zoom.svg)

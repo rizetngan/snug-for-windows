@@ -14,6 +14,7 @@
 - CSDM marker routes CrossDesk absolute touch, click, long press and move-only slide through shared gesture translator, excluding native controls and browser chrome. Relative cursor input is passed through. Native Windows input and existing UU behavior stay separate.
 - Optional UU single-controller exact model matching applies to the next new screen, never changes current display or saved manual model. Five generic portrait presets appear in the existing picker.
 - CrossDesk helper processes excluded from app library. Existing minimized-window placement and physical display-mode guards retained; no wholesale replacement.
+- CrossDesk settings UI uses readable selection colors, hides UU-only settings when CrossDesk is selected, and updates the status badge and setup hint immediately.
 
 ## How to test
 1. Keep existing UU 0.2.54 installation until the candidate is accepted. Install the 0.3.0 candidate only with the previous screen exited.
@@ -23,6 +24,9 @@
 5. Turn off phone screen to remove the prepared monitor after restoring the moved window. Switch to UU only after the screen is released and remotes disconnected.
 
 ## Gates
-- 421 unit/core tests passed and Release build reported zero warnings and errors before candidate packaging.
-- Real CrossDesk host/client is not installed/detected on this machine; mobile connection, actual service log ownership, privacy input replay, safe-area/rail interaction and screen hotplug remain unverified. Do not publish as a stable release yet.
+- 426 unit/core tests passed and Release build reported zero warnings and errors before candidate packaging.
+- CrossDesk Windows and Android 1.7.7 are now installed in per-user / device app locations. Android is still at the first-run privacy-consent gate; no consent was accepted on the user's behalf.
+- Direct IP host listens on TCP 52888. The tablet can ping the Windows PC, but inbound TCP is blocked by Windows Firewall. A temporary ADB reverse tunnel to 127.0.0.1:52888 succeeds and is reserved for test only; a narrowly scoped Private-profile firewall rule is still needed for normal LAN use.
+- ID/signaling mode currently remains disconnected on this network (TLS handshake to api.crossdesk.cn:9099 timed out). The CrossDesk Service was not installed; it is optional for normal desktop control and only required for lock-screen/sign-in-screen control.
+- Real mobile session, privacy input replay, safe-area/rail interaction, screen hotplug and UU regression remain unverified. Do not publish as a stable release yet.
 - Manual host restart guide included; no automatic restart, driver force-binding, or third-party host installation. Electron launcher handoff and broader UWP enumeration remain separate investigations; existing normal/minimized restore and mode protection are not rewritten.

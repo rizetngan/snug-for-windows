@@ -61,4 +61,76 @@ public sealed class CrossDeskInputTests
         Assert.Contains(end.Batches.SelectMany(x=>x.Commands), c=>c.Scroll is { Phase:ScrollPhase.Ended });
         Assert.DoesNotContain(slide.Batches.Concat(end.Batches).SelectMany(x=>x.Commands), c=>c.Kind!=TouchCommandKind.Scroll);
     }
+
+    [Fact]
+    public void MoveOnlyFingerFeedProducesSlideAndTimedRelease()
+    {
+        var normalizer = new CrossDeskTouch();
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.0));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(250,100), 1.3));
+        var slide = normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(260,100), 1.32));
+        Assert.Equal(CrossDeskTouch.FeedKind.Finger, normalizer.Feed);
+        Assert.Contains(slide.Before, x => x.Kind == CrossDeskTouchInputKind.Press);
+        Assert.Contains(slide.Before, x => x.Kind == CrossDeskTouchInputKind.Recognized && x.Gesture == CrossDeskTouchGesture.Slide);
+        Assert.Equal(CrossDeskTouchInputKind.Drag, slide.Current?.Kind);
+        Assert.Contains(normalizer.Tick(1.621), x => x.Kind == CrossDeskTouchInputKind.Release);
+    }
+
+    [Fact]
+    public void RepeatedStationaryMovesClassifyRelativeCursorFeed()
+    {
+        var normalizer = new CrossDeskTouch();
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.0));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.3));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.6));
+        var cursor = normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.9));
+        Assert.Equal(CrossDeskTouch.FeedKind.Cursor, normalizer.Feed);
+        Assert.Empty(cursor.Before);
+        Assert.Null(cursor.Current);
+    }
+
+    [Fact]
+    public void PausedSlideResumesOnTickAndEndsAfterInactivity()
+    {
+        var normalizer = new CrossDeskTouch();
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.0));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(250,100), 1.3));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(260,100), 1.32));
+        var paused = normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(260,100), 1.40));
+        Assert.Equal(CrossDeskTouchInputKind.Drag, paused.Current?.Kind);
+        Assert.Contains(normalizer.Tick(1.421), x => x.Kind == CrossDeskTouchInputKind.Drag);
+        Assert.Contains(normalizer.Tick(1.701), x => x.Kind == CrossDeskTouchInputKind.Release);
+    }
+
+    [Fact]
+    public void LargeLandingJumpReleasesPreviousSlideBeforeStartingNext()
+    {
+        var normalizer = new CrossDeskTouch();
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(100,100), 1.0));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(250,100), 1.3));
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(260,100), 1.32));
+        var landed = normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(500,500), 1.50));
+        Assert.Contains(landed.Before, x => x.Kind == CrossDeskTouchInputKind.Release);
+        Assert.Null(landed.Current);
+        var next = normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(510,500), 1.52));
+        Assert.Contains(next.Before, x => x.Kind == CrossDeskTouchInputKind.Press);
+        Assert.Equal(CrossDeskTouchInputKind.Drag, next.Current?.Kind);
+    }
+
+    [Fact]
+    public void TapRequiresNearbyMoveButVirtualMouseClickRemainsUnnormalized()
+    {
+        var normalizer = new CrossDeskTouch();
+        normalizer.Normalize(new(CrossDeskPointerEventKind.Move, new(200,300), 1.0));
+        var down = normalizer.Normalize(new(CrossDeskPointerEventKind.LeftDown, new(200,300), 1.01));
+        var up = normalizer.Normalize(new(CrossDeskPointerEventKind.LeftUp, new(200,300), 1.10));
+        Assert.Equal(CrossDeskTouchInputKind.Press, down.Current?.Kind);
+        Assert.Equal(CrossDeskTouchInputKind.Release, up.Current?.Kind);
+
+        var cursor = new CrossDeskTouch();
+        var virtualDown = cursor.Normalize(new(CrossDeskPointerEventKind.LeftDown, new(200,300), 2.0));
+        var virtualUp = cursor.Normalize(new(CrossDeskPointerEventKind.LeftUp, new(200,300), 2.1));
+        Assert.Null(virtualDown.Current);
+        Assert.Null(virtualUp.Current);
+    }
 }

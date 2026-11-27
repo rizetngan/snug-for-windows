@@ -23,7 +23,7 @@ public sealed record CrossDeskNormalized(IReadOnlyList<CrossDeskTouchInput> Befo
 /// CrossDesk mouse-event normalizer: converts CrossDesk's absolute-mouse touch stream
 /// (move-only slides, move+down+up taps, 0.35s client long-press) into standard finger inputs
 /// for <see cref="TouchTranslator"/>, while passing relative-mouse cursor feeds and virtual mouse bar
-/// clicks through untouched. Faithful port of upstream <c>CrossDeskTouch.swift</c>.
+/// clicks through untouched. Faithful port of nicocart/snug-win v1.5.1 <c>CrossDeskTouch.cs</c>.
 /// </summary>
 public sealed class CrossDeskTouch
 {

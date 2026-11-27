@@ -70,6 +70,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(RemoteModeChoice));
             OnPropertyChanged(nameof(RemoteModeDescription));
             OnPropertyChanged(nameof(PreviewScreenFit));
+            ConnectionStatus = UsesCrossDesk ? "等待 CrossDesk 启动" : "等待 UU 远程";
             ActivityStatus = UsesCrossDesk ? "先准备手机屏，再启动 CrossDesk" : "已切换到 UU 远程";
         }
     }
@@ -427,6 +428,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     public void StartCatalogPreview()
     {
+        ConnectionStatus = UsesCrossDesk ? "等待 CrossDesk 启动" : "等待 UU 远程";
         RefreshWindows();
         _ = LoadInstalledAppsAsync();
     }

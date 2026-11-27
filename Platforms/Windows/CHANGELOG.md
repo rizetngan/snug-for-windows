@@ -1,9 +1,10 @@
 ## 0.3.0 — CrossDesk adaptation candidate
 
 - Add experimental CrossDesk remote mode with pre-created phone display, independent process/log detection, registration status and confirmed disconnect window restoration.
-- Route CrossDesk CSDM absolute touch, taps and move-only slides through the existing gesture core; keep native controls and UU input separate.
+- Route CrossDesk absolute touch input through the shared gesture core. The input marker matches CrossDesk `kInjectedMouseInputMarker` (`0x4353444D`); native controls and UU input remain separate.
 - Add optional UU model matching and five generic portrait presets. Preserve the extension-free zoom, existing driver ownership and window layout safeguards.
-- Candidate only: live CrossDesk host/client, persistent-host and privacy replay, real mobile gestures, and UU regression acceptance still required.
+- Polish the provider selector contrast; hide UU-only model matching and viewport controls in CrossDesk mode, and update the connection badge immediately when switching providers.
+- Verification update: 426/426 core tests pass, including cursor/finger classification, move-only slides, pause/release, landing jumps, taps and long-press timing. Release build: 0 warnings / 0 errors.\r\n- CrossDesk 1.7.7 Windows and Android packages are installed for acceptance. The Android privacy-consent gate, real mobile session, LAN firewall rule, live touch replay and UU regression remain pending; do not publish as a stable release yet.
 
 ## 0.2.54 — native-only context zoom (candidate, 2026-11-27)
 
