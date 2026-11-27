@@ -1569,6 +1569,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             UuCaptureAcceptanceAudit.Record("SessionState", new
             {
+                crossDeskPresence = crossDesk.Presence.ToString(),
+                crossDeskShouldRestore = _crossDeskEpisode.ShouldRestore,
+                overlayVisible = signals.OverlayVisible,
                 captureActive = signals.CaptureActive,
                 captureVerifiedInactive = signals.CaptureVerifiedInactive,
                 captureVerifiedActive = signals.CaptureVerifiedActive,
@@ -1667,7 +1670,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        if (UsesCrossDesk && _crossDeskEpisode.ShouldRestore && !_connection.IsConnected && !_crossDeskRestoreRunning &&
+        // The selected provider owns the placed window. Returning that window does not release the display or end UU.
+        if (UsesCrossDesk && _crossDeskEpisode.ShouldRestore && !_crossDeskRestoreRunning &&
             !_pullingWindow && !_creatingSession && !_endingSession &&
             now - _lastCrossDeskRestoreAttempt >= TimeSpan.FromSeconds(3))
         {
@@ -1747,7 +1751,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             await _actionLane.RunAsync(async () =>
             {
-                if (!UsesCrossDesk || !_crossDeskEpisode.ShouldRestore || _connection.IsConnected || _endingSession) return;
+                if (!UsesCrossDesk || !_crossDeskEpisode.ShouldRestore || _endingSession) return;
                 await PutBackCoreAsync();
                 if (!HasPlacedWindow)
                 {
