@@ -77,6 +77,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private bool _previewOpen;
     private bool _showingPhoneList = true;
     private bool _pullingWindow;
+    private bool _geometryReconcilePending;
+    private bool _startupRecoveryPending;
+    private bool _startupRecoveryRunning;
+    private DateTimeOffset _lastStartupRecoveryAttempt;
     private WindowKey? _askingDialogKey;
     private bool _recoveringDialog;
     private bool _recoveringLostWindow;
@@ -368,8 +372,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public void Start()
     {
         _startedAt = DateTimeOffset.UtcNow;
-        RecoverInterruptedMove();
         Refresh();
+        _startupRecoveryPending = _ledger.Load() is not null;
         _ = LoadInstalledAppsAsync();
         _timer.Start();
         _ = RefreshDriverStatusAsync();
@@ -397,6 +401,19 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         foreach (var display in _displayEnumerator.GetDisplays()) Displays.Add(display);
         _availableSnugDisplay = _displayEnumerator.FindSnugDisplay();
 
+        if (_phoneDisplay is { } old && _availableSnugDisplay is { } fresh &&
+            PhoneLayoutValidation.GeometryChanged(old, fresh) &&
+            !_creatingSession && !_endingSession && !_pullingWindow &&
+            !_recoveringDialog && !_recoveringLostWindow && !_geometryReconcilePending && !_screenshots.IsCropping && _modeGate.CurrentCount == 1)
+        {
+            _geometryReconcilePending = true;
+            _ = _actionLane.RunAsync(async () =>
+            {
+                try { await ReconcilePhoneGeometryAsync(); }
+                finally { _geometryReconcilePending = false; }
+            });
+        }
+
         if (_phoneDisplay is not null)
             DisplayStatus = $"Snug 手机屏 · {_phoneDisplay.Bounds.Width} × {_phoneDisplay.Bounds.Height}";
         else if (_availableSnugDisplay is not null)
@@ -409,6 +426,51 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             DisplayStatus = _driver.IsInstalled ? "检测到外部虚拟显示驱动" : "虚拟显示驱动未安装";
 
         OnPropertyChanged(nameof(Displays));
+    }
+
+    private async Task ReconcilePhoneGeometryAsync()
+    {
+        if (_disposed || _phoneDisplay is not { } old || _creatingSession || _endingSession ||
+            _pullingWindow || _recoveringDialog || _recoveringLostWindow ||
+            _screenshots.IsCropping || _modeGate.CurrentCount != 1) return;
+        var fresh = _displayEnumerator.FindSnugDisplay();
+        if (fresh is null || !PhoneLayoutValidation.GeometryChanged(old, fresh)) return;
+        try
+        {
+            // Restore the requested native mode before reusing its geometry.
+            if (!await ChangePhoneModeAsync(_activeModeWidth))
+            {
+                // Do not leave the app and bars on stale geometry after a failed mode switch.
+                if (_disposed || _endingSession) return;
+                if (_displayEnumerator.FindSnugDisplay() is { } actualDisplay)
+                {
+                    ApplyPhoneGeometry(actualDisplay);
+                    await PutBackCoreAsync();
+                    ShowPhoneList(restoreListMode: false);
+                }
+                return;
+            }
+            if (_phoneDisplay is not { } display || _disposed || _endingSession) return;
+            if (_placed is { } placed && !_showingPhoneList)
+            {
+                var area = CurrentAppArea(display);
+                if (!_windowManager.MoveTo(placed.Key, area) ||
+                    _windowManager.ReadBounds(placed.Key) is not { } actual ||
+                    !PhoneLayoutValidation.Fits(actual, area))
+                {
+                    await PutBackCoreAsync();
+                    ShowPhoneList();
+                    return;
+                }
+                _placed = placed with { FilledBounds = actual };
+                _ledger.Save(_placed);
+                ShowHomeBar(display);
+            }
+        }
+        catch (Exception error)
+        {
+            ActivityStatus = error.Message;
+        }
     }
 
     public void RefreshWindows()
@@ -980,7 +1042,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private async Task<bool> ChangePhoneModeAsync(int width)
     {
         var fit = CurrentScreenFit;
-        if (!fit.Widths.Contains(width) || _phoneDisplay is null) return false;
+        if (!fit.Widths.Contains(width) || _phoneDisplay is null || _disposed || _endingSession) return false;
         // Windows signed VDD has a validated 20-point mode grid. Round up
         // rather than requesting one of the unsupported intermediate widths.
         width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width,
@@ -990,9 +1052,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         await _modeGate.WaitAsync();
         try
         {
-            var display = _phoneDisplay;
-            if (display is null) return false;
-            var previousGeometry = display.Bounds;
+            var display = _displayEnumerator.FindSnugDisplay();
+            if (display is null || _phoneDisplay is null || _disposed || _endingSession) return false;
             var changingMode = !_modeSwitcher.HasMode(display, mode);
             // WinForms screen bounds are DPI-virtualized (720x1223 on this
             // user's 1080x1834 VDD). Always compare/set the raw Win32 mode.
@@ -1019,35 +1080,26 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             // were reused on a new 820x1392 display. That left the browser and
             // HomeBar covering only part of the actual virtual screen.
             DisplayInfo? found = null;
-            var geometrySettled = !changingMode;
+            var geometrySettled = false;
             for (var attempt = 0; attempt < 40; attempt++)
             {
+                if (_disposed || _endingSession) return false;
                 found = _displayEnumerator.FindSnugDisplay();
-                if (found is not null && _modeSwitcher.HasMode(found, mode))
+                if (found is not null && _modeSwitcher.HasMode(found, mode) &&
+                    PhoneLayoutValidation.MatchesMode(found.Bounds, mode.Width, mode.Height))
                 {
-                    geometrySettled = !changingMode
-                        || found.Bounds.Width != previousGeometry.Width
-                        || found.Bounds.Height != previousGeometry.Height;
-                    if (geometrySettled) break;
+                    geometrySettled = true;
+                    break;
                 }
                 await Task.Delay(150);
             }
-            if (found is null || !_modeSwitcher.HasMode(found, mode) || !geometrySettled)
+            if (found is null || !geometrySettled)
             {
                 ActivityStatus = "Windows 尚未确认 Snug 手机屏的新分辨率。";
                 return false;
             }
-            _phoneDisplay = found;
-            _availableSnugDisplay = found;
             _activeModeWidth = width;
-            _phoneSurface?.PlaceOn(found);
-            _notchGuard?.PlaceOn(found);
-            _homeBar?.PlaceOn(found);
-            _zoomRail?.PlaceOn(found);
-            _appBackBar?.PlaceOn(found);
-            _screenshotPanel?.PlaceOn(found);
-            _gestureHook.SetRegion(found, TouchScale());
-            SyncGestures();
+            ApplyPhoneGeometry(found);
             RefreshDisplays();
             return true;
         }
@@ -1057,6 +1109,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return false;
         }
         finally { _modeGate.Release(); }
+    }
+
+    private void ApplyPhoneGeometry(DisplayInfo display)
+    {
+        _phoneDisplay = display;
+        _availableSnugDisplay = display;
+        _phoneSurface?.PlaceOn(display);
+        _notchGuard?.PlaceOn(display);
+        _homeBar?.PlaceOn(display);
+        _zoomRail?.PlaceOn(display);
+        _appBackBar?.PlaceOn(display);
+        _screenshotPanel?.PlaceOn(display);
+        _gestureHook.SetRegion(display, TouchScale());
+        SyncGestures();
     }
 
     private async Task<bool> FitMovedWindowAsync(WindowInfo window)
@@ -1078,7 +1144,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 new PhoneSize(area.Width, area.Height), _activeModeWidth);
             if (needed <= _activeModeWidth)
             {
-                if (actual.Value.Width > area.Width + 2 || actual.Value.Height > area.Height + 2)
+                if (!PhoneLayoutValidation.Fits(actual.Value, area))
                 {
                     ActivityStatus = "应用的最小窗口尺寸超过手机屏最大档位，无法完整显示。";
                     return false;
@@ -1096,7 +1162,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 return false;
             }
         }
-        return true;
+        if (_phoneDisplay is not { } finalDisplay ||
+            _windowManager.ReadBounds(window.Key) is not { } finalBounds)
+            return false;
+        var finalArea = CurrentAppArea(finalDisplay);
+        return PhoneLayoutValidation.Fits(finalBounds, finalArea);
     }
 
     private async Task RestoreListModeAsync()
@@ -1110,11 +1180,17 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_phoneDisplay is null || !_windowManager.IsResponsive(placed.Key)) return;
         if (!await ChangePhoneModeAsync(_placedModeWidth)) return;
         if (_phoneDisplay is not { } display ||
-            !_windowManager.MoveTo(placed.Key, CurrentAppArea(display)))
+            !_windowManager.MoveTo(placed.Key, CurrentAppArea(display)) ||
+            _windowManager.ReadBounds(placed.Key) is not { } actual ||
+            !PhoneLayoutValidation.Fits(actual, CurrentAppArea(display)))
         {
-            ActivityStatus = "无法在当前手机分辨率下重新铺放 App。";
+            await PutBackCoreAsync();
+            ShowPhoneList();
+            ActivityStatus = "无法在当前手机分辨率下重新铺放 App，已尝试还原。";
             return;
         }
+        _placed = placed with { FilledBounds = actual };
+        _ledger.Save(_placed);
         _showingPhoneList = false;
         _phoneSurface?.Hide();
         SyncGestures();
@@ -1454,7 +1530,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             CheckLeftBehindReturns(now);
         }
 
-        if (!_recoveringLostWindow && !_pullingWindow && !_recoveringDialog
+        if (!_startupRecoveryPending && !_recoveringLostWindow && !_pullingWindow && !_recoveringDialog
             && _placed is { } current && !_windowManager.IsAlive(current.Key))
         {
             _recoveringLostWindow = true;
@@ -1464,6 +1540,29 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             _lastDriverScan = now;
             _ = RefreshDriverStatusAsync();
+        }
+
+        if (_startupRecoveryPending)
+        {
+            if (!_startupRecoveryRunning && now - _lastStartupRecoveryAttempt >= TimeSpan.FromSeconds(5))
+            {
+                _lastStartupRecoveryAttempt = now;
+                _startupRecoveryRunning = true;
+                _ = _actionLane.RunAsync(async () =>
+                {
+                    try
+                    {
+                        await PutBackCoreAsync();
+                        _startupRecoveryPending = HasPlacedWindow;
+                    }
+                    catch (Exception error)
+                    {
+                        ActivityStatus = "窗口恢复失败：" + error.Message;
+                    }
+                    finally { _startupRecoveryRunning = false; }
+                });
+            }
+            return;
         }
 
         if (keepPhoneDisplay)
@@ -1528,7 +1627,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private async Task StartPhoneSessionAsync()
     {
-        if (_creatingSession || _endingSession || _disposed) return;
+        if (_creatingSession || _endingSession || _disposed || _startupRecoveryPending) return;
         _creatingSession = true;
         UuCaptureAcceptanceAudit.Record("StartPhoneSession", new { stage = "begin", driverManaged = _driver.IsManagedBySnug });
         _orphanCleanupStarted = false;
@@ -1759,47 +1858,53 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_endingSession) return;
         _displayHold.Reset();
         _endingSession = true;
-        UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "begin", connected = _connection.IsConnected, wantsPhoneScreen = _connection.WantsPhoneScreen(DateTimeOffset.UtcNow), dismissed = false, phoneScreenEnabled = PhoneScreenEnabled, placedWindow = _placed is not null, phoneDisplay = _phoneDisplay is not null });
-        await PutBackAsync();
-        UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "after-putback", placedWindow = _placed is not null, putBackStatus = ActivityStatus, putBackSucceeded = ActivityStatus == "窗口已还原" });
-        if (_placed is not null)
+        try
         {
-            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "blocked-window-restore", placedWindow = true });
-            ActivityStatus = "窗口尚未恢复，保留手机屏以便重试";
-            _endingSession = false;
-            return;
+            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "begin", connected = _connection.IsConnected, wantsPhoneScreen = _connection.WantsPhoneScreen(DateTimeOffset.UtcNow), dismissed = false, phoneScreenEnabled = PhoneScreenEnabled, placedWindow = _placed is not null, phoneDisplay = _phoneDisplay is not null });
+            await PutBackAsync();
+            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "after-putback", placedWindow = _placed is not null, putBackStatus = ActivityStatus, putBackSucceeded = ActivityStatus == "窗口已还原" });
+            if (HasPlacedWindow)
+            {
+                UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "blocked-window-restore", placedWindow = true });
+                ActivityStatus = "窗口尚未恢复，保留手机屏以便重试";
+                return;
+            }
+
+            _gestureHook.Stop();
+            _gestureHook.SetRegion(null);
+            _notchGuard?.Close();
+            _notchGuard = null;
+            _homeBar?.Close();
+            _homeBar = null;
+            _zoomRail?.Close();
+            _zoomRail = null;
+            _appBackBar?.Close();
+            _appBackBar = null;
+            _phoneSurface?.Close();
+            _phoneSurface = null;
+            _phoneDisplay = null;
+            _activeDisplayPhoneChoice = null;
+            _activeDisplayInsetPoints = null;
+            _activeDisplayPreferredBaseWidth = null;
+            _previewOpen = false;
+
+            if (_driver.IsManagedBySnug)
+            {
+                _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
+                var stopped = await ChangeOwnedDisplayAsync(false);
+                UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "display-stop", stopped, snugDisplay = _displayEnumerator.FindSnugDisplay() is not null });
+                if (!stopped)
+                    ActivityStatus = "手机屏已退出，系统显示器正在关闭；稍后会自动重试";
+            }
+
+            DisplayStatus = "等待 UU 远程";
+            RefreshDisplays();
         }
-
-        _gestureHook.Stop();
-        _gestureHook.SetRegion(null);
-        _notchGuard?.Close();
-        _notchGuard = null;
-        _homeBar?.Close();
-        _homeBar = null;
-        _zoomRail?.Close();
-        _zoomRail = null;
-        _appBackBar?.Close();
-        _appBackBar = null;
-        _phoneSurface?.Close();
-        _phoneSurface = null;
-        _phoneDisplay = null;
-        _activeDisplayPhoneChoice = null;
-        _activeDisplayInsetPoints = null;
-        _activeDisplayPreferredBaseWidth = null;
-        _previewOpen = false;
-
-        if (_driver.IsManagedBySnug)
+        catch (Exception error)
         {
-            _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
-            var stopped = await ChangeOwnedDisplayAsync(false);
-            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "display-stop", stopped, snugDisplay = _displayEnumerator.FindSnugDisplay() is not null });
-            if (!stopped)
-                ActivityStatus = "手机屏已退出，系统显示器正在关闭；稍后会自动重试";
+            ActivityStatus = "手机屏退出未完成：" + error.Message;
         }
-
-        DisplayStatus = "等待 UU 远程";
-        _endingSession = false;
-        RefreshDisplays();
+        finally { _endingSession = false; }
     }
 
     private async Task ClearOrphanedDisplayAsync()
@@ -1954,49 +2059,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
     }
-    private void RecoverInterruptedMove()
-    {
-        var record = _ledger.Load();
-        if (record is null) return;
-        if (!_windowManager.IsAlive(record.Key))
-        {
-            try
-            {
-                _leftBehind.Add(record, DateTimeOffset.UtcNow);
-                _ledger.Clear();
-            }
-            catch (IOException error)
-            {
-                ActivityStatus = "暂时无法保存窗口恢复记录：" + error.Message;
-            }
-            catch (UnauthorizedAccessException error)
-            {
-                ActivityStatus = "暂时无法保存窗口恢复记录：" + error.Message;
-            }
-            return;
-        }
-        if (!_windowManager.IsResponsive(record.Key))
-        {
-            ActivityStatus = "发现未完成的窗口恢复；App 暂时无响应，已保留记录";
-            return;
-        }
-
-        var window = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (record.ZoomSteps != 0)
-        {
-            if (!_windowManager.Zoom(window, -record.ZoomSteps))
-            {
-                ActivityStatus = "发现未完成的字号还原，记录已保留";
-                return;
-            }
-            record = record with { ZoomSteps = 0 };
-            _ledger.Save(record);
-        }
-        if (_windowManager.Restore(record)) _ledger.Clear();
-        else ActivityStatus = "发现未完成的窗口还原，记录已保留";
-    }
-
     private void SaveSettings()
     {
         _settings.PhoneScreenEnabled = _phoneScreenEnabled;
