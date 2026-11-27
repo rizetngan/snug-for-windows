@@ -15,6 +15,7 @@ public partial class HomeBarWindow : Window
     private DisplayInfo? _targetDisplay;
     private bool _cameraLongPressAccepted;
     private bool _cameraKeyboardArmed;
+    private bool _placementQueued;
 
     public HomeBarWindow(AppController controller)
     {
@@ -40,8 +41,7 @@ public partial class HomeBarWindow : Window
     {
         _targetDisplay = display;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = 0;
-        Top = 0;
+        if (!IsLoaded) { Left = 0; Top = 0; }
         Width = display.Bounds.Width / display.DpiScaleX;
         var barHeight = ScreenFit.HomeBarHeight(display.Bounds.Width);
         var safeFooter = UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width);
@@ -74,6 +74,29 @@ public partial class HomeBarWindow : Window
                     - UuMobileOverlaySafeArea.BottomInset(display.Bounds.Width)) / display.DpiScaleY;
         }
 
+        // Moving a WPF HWND across DPI boundaries can enqueue a second size
+        // change after SetWindowPos. Reconcile once after layout, using the
+        // latest target (never an obsolete monitor/mode).
+        if (!_placementQueued)
+        {
+            _placementQueued = true;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+            {
+                _placementQueued = false;
+                if (!IsVisible || _targetDisplay is not { } target) return;
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                var height = UuMobileOverlaySafeArea.ReservedBottom(target.Bounds.Width);
+                var y = target.Bounds.Y + target.Bounds.Height - height;
+                if (!NativeMethods.GetPhysicalWindowRect(hwnd, out var rect)) return;
+                if (rect.Left == target.Bounds.X && rect.Top == y &&
+                    rect.Right - rect.Left == target.Bounds.Width && rect.Bottom - rect.Top == height) return;
+                var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+                Width = target.Bounds.Width / dpi.DpiScaleX;
+                Height = height / dpi.DpiScaleY;
+                NativeMethods.SetPhysicalWindowPos(hwnd, new IntPtr(-1), target.Bounds.X, y,
+                    target.Bounds.Width, height, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
+            }));
+        }
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
     }
 
