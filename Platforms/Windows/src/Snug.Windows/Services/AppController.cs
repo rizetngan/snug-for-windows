@@ -352,18 +352,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _phoneCatalog = LoadPhoneCatalog();
         var savedScreen = new PhoneScreen(_settings.PhoneScreenWidth, _settings.PhoneScreenHeight,
             _settings.PhoneScreenPoints);
-        if (savedScreen.IsValid && string.IsNullOrWhiteSpace(_settings.PhoneModel))
-        {
-            _phoneChoice = new PhoneChoice(null, savedScreen);
-        }
-        else if (_phoneCatalog.Find(_settings.PhoneModel) is { } savedModel)
-        {
-            _phoneChoice = new PhoneChoice(savedModel.Id, savedModel.Screen);
-        }
-        else
-        {
-            _phoneChoice = PhoneChoice.Standard;
-        }
+        _phoneChoice = _phoneCatalog.RestoreChoice(_settings.PhoneModel, savedScreen);
         _uuViewportMode = UuViewportPreset.Normalize(_settings.UuViewportMode);
         _baseWidthOption = PhoneBaseWidth.IndexOf(_settings.PhoneBaseWidth);
         _activeModeWidth = CurrentScreenFit.BaseWidth;

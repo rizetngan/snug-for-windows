@@ -106,8 +106,17 @@ public sealed class PhoneCatalog
         return FromJson(reader.ReadToEnd());
     }
 
-    public PhoneModel? Find(string id) => Models.FirstOrDefault(model =>
+    public PhoneModel? Find(string id) => Models.Concat(GenericPresets).FirstOrDefault(model =>
         string.Equals(model.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    public PhoneChoice RestoreChoice(string? modelId, PhoneScreen savedScreen)
+    {
+        if (!string.IsNullOrWhiteSpace(modelId) && Find(modelId) is { } model)
+            return new PhoneChoice(model.Id, model.Screen);
+        if (savedScreen.IsValid)
+            return new PhoneChoice(null, savedScreen);
+        return PhoneChoice.Standard;
+    }
 
     public const string GenericBrand = "通用比例";
     public static IReadOnlyList<PhoneModel> GenericPresets { get; } =

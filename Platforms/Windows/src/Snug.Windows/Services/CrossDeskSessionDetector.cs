@@ -39,7 +39,7 @@ internal sealed class CrossDeskSessionDetector
     }
 
     private readonly object _gate = new();
-    private readonly Source[] _sources = CandidatePaths().Select(path => new Source(path)).ToArray();
+    private readonly Dictionary<string, Source> _sources = new(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset _lastPoll;
     private bool _polling;
     private (int Id, DateTimeOffset Started)? _generation;
@@ -101,8 +101,26 @@ internal sealed class CrossDeskSessionDetector
                         _generation = generation;
                     }
 
+                    // Portable CrossDesk writes logs beside its running executable.
+                    // Resolve only the actual process location, not arbitrary directory scans.
+                    var paths = CandidatePaths().ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    foreach (var process in processes)
+                    {
+                        try
+                        {
+                            if (process.MainModule?.FileName is { } executable &&
+                                Path.GetDirectoryName(executable) is { } directory)
+                                paths.Add(Path.Combine(directory, "logs", "crossdesk.log"));
+                        }
+                        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException) { }
+                    }
+                    foreach (var path in _sources.Keys.Where(path => !paths.Contains(path)).ToArray())
+                        _sources.Remove(path);
+                    foreach (var path in paths)
+                        if (!_sources.ContainsKey(path)) _sources.Add(path, new Source(path));
+
                     var readable = new List<CrossDeskSessionEvidence>();
-                    foreach (var source in _sources)
+                    foreach (var source in _sources.Values)
                     {
                         try
                         {
@@ -177,7 +195,7 @@ internal sealed class CrossDeskSessionDetector
 
     private void ResetSources()
     {
-        foreach (var source in _sources) source.Reset();
+        foreach (var source in _sources.Values) source.Reset();
     }
 
     [StructLayout(LayoutKind.Sequential)]

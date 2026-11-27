@@ -66,6 +66,23 @@ public sealed class PhoneModelsTests
     }
 
     [Fact]
+    public void GenericPresetIdentitySurvivesRestartAndProducesCorrectRatio()
+    {
+        var catalog = PhoneCatalog.FromJson(CatalogJson);
+        foreach (var preset in PhoneCatalog.GenericPresets)
+        {
+            var restored = catalog.RestoreChoice(preset.Id, preset.Screen);
+            Assert.Equal(preset.Id, restored.Model);
+            Assert.Equal(preset.Screen, restored.Screen);
+            var mode = VddResolutionProfile.Create(restored, verticalInsetPoints: 0)[0];
+            Assert.InRange(Math.Abs((double)mode.Height / mode.Width - (double)preset.Screen.Height / preset.Screen.Width), 0, 0.003);
+        }
+        var old = new PhoneScreen(1600, 2560, 800);
+        Assert.Equal(new PhoneChoice(null, old), catalog.RestoreChoice("obsolete preset", old));
+        Assert.Equal(PhoneChoice.Standard, catalog.RestoreChoice("unknown", new PhoneScreen(0,0)));
+    }
+
+    [Fact]
     public void GenericPresetsProduceSupportedPortraitFits()
     {
         Assert.Equal(5, PhoneCatalog.GenericPresets.Count);
