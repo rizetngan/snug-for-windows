@@ -42,7 +42,7 @@ CrossDesk Android 客户端是控制端，不是远程主机。要控制 Windows
 1. Windows 和 Android 两端安装 CrossDesk；Android 完成首次隐私授权
 2. 先在 Snug 设置中选择 CrossDesk、选定机型并开启手机屏，等待竖屏显示器准备完成
 3. 再启动 Windows CrossDesk 主机；如果主机已经运行，先退出，再在手机屏准备完成后重新启动
-4. Android CrossDesk 通过设备 ID 或局域网 IP 连接 Windows，并选择 Snug 手机显示器
+4. Android CrossDesk 通过设备 ID 或局域网 IP 连接 Windows，并选择 Snug 手机显示器；在远程控制菜单确认当前为「绝对鼠标」（相对鼠标是触控板模式）
 5. 在手机上操作窗口；Snug 负责点击、滚动、长按和缩放
 6. 退出 CrossDesk 会话后，Snug 恢复受管理窗口；切回 UU 前先关闭手机屏
 
