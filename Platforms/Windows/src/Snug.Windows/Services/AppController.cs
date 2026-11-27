@@ -35,6 +35,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
         PhoneBaseWidth.AtIndex(_baseWidthOption));
     private readonly UuSessionDetector _uuDetector = new();
+    private readonly CrossDeskSessionDetector _crossDeskDetector = new();
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
     private readonly PhoneDisplayHold _displayHold = new();
@@ -1495,7 +1496,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         var now = DateTimeOffset.UtcNow;
         var signals = _uuDetector.Sample();
-        ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary;
+        var crossDesk = _crossDeskDetector.Sample(_phoneDisplay?.DeviceName);
+        ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary
+            + Environment.NewLine + crossDesk.Summary;
         var transitions = _connection.Update(signals, now);
         var wantsPhoneScreen = _connection.WantsPhoneScreen(now);
         var keepPhoneDisplay = _displayHold.ShouldKeep(
