@@ -34,6 +34,7 @@ The CrossDesk Android app is a controller, not a remote host. To control Windows
 - Windows x64; verified on Windows 10 Pro 22H2 (build 19045)
 - Snug installer bundles the signed VDD 25.7.23 driver, NefCon 1.21.1 and runtime
 - First-time Snug virtual-display driver deployment requires Windows administrator approval. The candidate app can run from a per-user folder when the driver is already installed.
+- The current installer is not code-signed, so Windows may show a SmartScreen warning. Verify the SHA-256 published with the GitHub release before running it.
 - CrossDesk mode requires the Windows desktop app and Android client. CrossDesk Service is only needed for lock-screen/sign-in-screen control; normal desktop control does not require it.
 
 ## CrossDesk setup

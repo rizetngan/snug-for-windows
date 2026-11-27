@@ -34,6 +34,7 @@ CrossDesk Android 客户端是控制端，不是远程主机。要控制 Windows
 - Windows x64；当前实测环境为 Windows 10 Pro 22H2（19045）
 - Snug 安装包包含签名 VDD 25.7.23、NefCon 1.21.1 和运行时
 - 首次部署 Snug 虚拟显示驱动需要 Windows 管理员授权；已有驱动的候选版可从用户目录运行
+- 当前安装程序尚未进行代码签名，Windows 可能显示 SmartScreen 提示；从 GitHub 下载后先核对 SHA-256，再继续运行
 - CrossDesk 模式需要 Windows 桌面版和 Android 客户端；CrossDesk Service 只用于锁屏/登录界面远控，普通桌面控制不需要安装该服务
 
 ## CrossDesk 使用流程

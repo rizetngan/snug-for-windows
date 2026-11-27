@@ -16,6 +16,7 @@
 - CrossDesk helper processes excluded from app library. Existing minimized-window placement and physical display-mode guards retained; no wholesale replacement.
 - CrossDesk settings UI uses readable selection colors, hides UU-only settings when CrossDesk is selected, and updates the status badge and setup hint immediately.
 - Extension-free audit: no Snug browser extension manifest found in Chrome or Edge profiles, no Snug Native Messaging registration found in HKCU/HKLM, and no BrowserZoomExtension or SnugZoomHost binary remains in the installed Snug folder.
+- Release packaging note: the 0.3.0 installer and launcher are currently unsigned. Include SHA-256 in the release and keep the SmartScreen note in the installation guide unless a trusted code-signing certificate is added.
 
 ## How to test
 1. Keep existing UU 0.2.54 installation until the candidate is accepted. Install the 0.3.0 candidate only with the previous screen exited.
