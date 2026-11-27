@@ -38,12 +38,12 @@ The CrossDesk Android app is a controller, not a remote host. To control Windows
 
 ## CrossDesk setup
 
-1. Start CrossDesk on Windows and choose Direct IP mode or a reachable device-ID mode.
-2. Install CrossDesk on Android and complete its first-run privacy consent.
-3. Select CrossDesk in Snug Settings and create the phone screen.
-4. Connect the Android CrossDesk controller to the Windows host and select the Snug display.
+1. Install CrossDesk on Windows and Android; complete the first-run privacy consent on Android.
+2. In Snug Settings, select CrossDesk, choose the phone model and enable the phone screen. Wait until the portrait display is ready.
+3. Only then start the CrossDesk Windows host. If it is already running, exit it and restart after the Snug display is ready.
+4. Connect the Android CrossDesk controller to Windows by device ID or LAN IP, then select the Snug display.
 5. Use the phone to operate windows; Snug handles taps, scrolling, long press and zoom.
-6. End the CrossDesk session before restoring windows and switching back to UU.
+6. End the CrossDesk session before restoring windows; turn off the phone screen before switching back to UU.
 
 **Direct LAN:** CrossDesk uses TCP port 52888 by default. Windows Firewall must allow inbound CrossDesk traffic on the Private profile; do not open it on Public networks. Device-ID mode requires access to the signaling server.
 
