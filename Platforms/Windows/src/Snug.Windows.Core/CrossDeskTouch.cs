@@ -146,7 +146,11 @@ public sealed class CrossDeskTouch
                     if (!_pressHeld)
                     {
                         _pressHeld = true;
-                        before.Add(CrossDeskTouchInput.Recognized(CrossDeskTouchGesture.Hold, ev.Location, ev.Time));
+                        // Android 1.7.7 also emits button-down + rapid movement for a swipe.
+                        // Only a drag starting after the hold interval is selection.
+                        var gesture = ev.Time - _pressDown.Time < HoldAfterDown
+                            ? CrossDeskTouchGesture.Slide : CrossDeskTouchGesture.Hold;
+                        before.Add(CrossDeskTouchInput.Recognized(gesture, ev.Location, ev.Time));
                     }
                     return new CrossDeskNormalized(before, new CrossDeskTouchInput(CrossDeskTouchInputKind.Drag, ev.Location, ev.Time));
 

@@ -8,6 +8,31 @@ public sealed class CrossDeskInputTests
         new(kind, new PointD(x,y), time);
 
     [Fact]
+    public void Android177FastButtonDragScrollsInsteadOfSelecting()
+    {
+        var p = new CrossDeskInputPipeline();
+        p.Take(E(CrossDeskPointerEventKind.Move,2455,1927,1), _=>true,1);
+        var down = p.Take(E(CrossDeskPointerEventKind.LeftDown,2455,1927,1), _=>true,1);
+        var drag = p.Take(E(CrossDeskPointerEventKind.LeftDrag,2455,1742,1.016), _=>true,1);
+        var up = p.Take(E(CrossDeskPointerEventKind.LeftUp,2455,709,1.407), _=>true,1);
+        Assert.False(down.PassOriginal);
+        Assert.False(drag.PassOriginal);
+        Assert.False(up.PassOriginal);
+        Assert.Contains(drag.Batches.SelectMany(b=>b.Commands), c=>c.Scroll is { PixelsY: < 0 });
+        Assert.DoesNotContain(drag.Batches.Concat(up.Batches).SelectMany(b=>b.Commands), c=>c.Kind == TouchCommandKind.ReplayPress || c.Kind == TouchCommandKind.ReplayCurrent || c.Kind == TouchCommandKind.RightClick);
+    }
+
+    [Fact]
+    public void DelayedButtonDragPreservesSelection()
+    {
+        var p = new CrossDeskInputPipeline();
+        p.Take(E(CrossDeskPointerEventKind.Move,200,300,1), _=>true,1);
+        p.Take(E(CrossDeskPointerEventKind.LeftDown,200,300,1.001), _=>true,1);
+        var drag = p.Take(E(CrossDeskPointerEventKind.LeftDrag,200,350,1.2), _=>true,1);
+        Assert.Contains(drag.Batches.SelectMany(b=>b.Commands), c=>c.Kind == TouchCommandKind.ReplayPress);
+    }
+
+    [Fact]
     public void AbsoluteTapAndStationaryDragReplayExactlyOneClick()
     {
         var pipeline = new CrossDeskInputPipeline();
