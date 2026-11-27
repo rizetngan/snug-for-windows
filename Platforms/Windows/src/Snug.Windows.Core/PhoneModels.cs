@@ -109,6 +109,67 @@ public sealed class PhoneCatalog
     public PhoneModel? Find(string id) => Models.FirstOrDefault(model =>
         string.Equals(model.Id, id, StringComparison.OrdinalIgnoreCase));
 
+    public const string GenericBrand = "通用比例";
+    public static IReadOnlyList<PhoneModel> GenericPresets { get; } =
+    [
+        new(GenericBrand, "手机 20:9", new(1080, 2400, 400)),
+        new(GenericBrand, "手机 19.5:9", new(1080, 2340, 400)),
+        new(GenericBrand, "手机 16:9", new(1080, 1920, 400)),
+        new(GenericBrand, "平板 4:3", new(1620, 2160, 810)),
+        new(GenericBrand, "平板 16:10", new(1600, 2560, 800))
+    ];
+
+    // Only accept complete model tokens. Do not guess an unrecognized suffix
+    // (e.g. "iPhone 16 Pro" is not a match for "iPhone 16").
+    public PhoneModel? MatchControllerName(string? controllerName)
+    {
+        if (string.IsNullOrWhiteSpace(controllerName)) return null;
+        var input = ControllerTokens(controllerName);
+        var matches = new List<(PhoneModel Model, int Score)>();
+        foreach (var brand in Brands)
+        foreach (var model in brand.Models)
+        {
+            var modelTokens = ControllerTokens(model.Name);
+            if (modelTokens.Length < 4) continue;
+            var candidates = new[] { model.Name }
+                .Concat(new[] { brand.Name }.Concat(brand.Aliases)
+                    .Select(alias => alias + " " + model.Name));
+            foreach (var candidate in candidates)
+            {
+                var token = ControllerTokens(candidate);
+                // Match complete token sequences only. Ignore a user's
+                // device-name prefix; require the model at the end.
+                if (input.EndsWith(" " + token, StringComparison.Ordinal) ||
+                    string.Equals(input, token, StringComparison.Ordinal))
+                {
+                    var selfIdentifying = modelTokens.StartsWith("iphone ", StringComparison.Ordinal) ||
+                        modelTokens.StartsWith("ipad ", StringComparison.Ordinal) ||
+                        modelTokens.StartsWith("galaxy ", StringComparison.Ordinal) ||
+                        modelTokens.StartsWith("pixel ", StringComparison.Ordinal) ||
+                        modelTokens.StartsWith("redmi ", StringComparison.Ordinal) ||
+                        modelTokens.StartsWith("mate ", StringComparison.Ordinal);
+                    if (!selfIdentifying && token == modelTokens) continue;
+                    matches.Add((model, token.Length));
+                }
+            }
+        }
+        if (matches.Count == 0) return null;
+        var max = matches.Max(m => m.Score);
+        var best = matches.Where(m => m.Score == max).Select(m => m.Model).Distinct().ToArray();
+        return best.Length == 1 ? best[0] : null;
+    }
+
+    public PhoneModel? MatchSinglePhoneController(IReadOnlyList<ControllerInfo> controllers) =>
+        controllers.Count == 1 && controllers[0].Kind == ControllerKind.Phone
+            ? MatchControllerName(controllers[0].Name) : null;
+
+    private static string ControllerTokens(string text)
+    {
+        var tokens = System.Text.RegularExpressions.Regex.Split(text.ToLowerInvariant(),
+            @"[^\p{L}\p{N}]+").Where(s => s.Length > 0);
+        return string.Join(" ", tokens);
+    }
+
     public PhoneChoice Resolve(PhoneChoice choice)
     {
         if (choice.Model is null) return choice;

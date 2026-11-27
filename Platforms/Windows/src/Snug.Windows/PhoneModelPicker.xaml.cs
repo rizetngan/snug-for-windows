@@ -69,6 +69,13 @@ public partial class PhoneModelPicker : System.Windows.Controls.UserControl, INo
         var brands = _catalog.Search(query);
         var rows = new List<PhoneModelListRow>();
 
+        if (query.Length == 0)
+        {
+            rows.Add(new PhoneModelListRow(true, PhoneCatalog.GenericBrand, null, false));
+            foreach (var model in PhoneCatalog.GenericPresets)
+                rows.Add(new PhoneModelListRow(false, PhoneCatalog.GenericBrand, model,
+                    _current.Model is null && _current.Screen == model.Screen));
+        }
         foreach (var brand in brands)
         {
             rows.Add(new PhoneModelListRow(true, brand.Name, null, false));
@@ -87,7 +94,7 @@ public partial class PhoneModelPicker : System.Windows.Controls.UserControl, INo
     private void SelectModel_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button { Tag: PhoneModel model }) return;
-        Choose(new PhoneChoice(model.Id, model.Screen));
+        Choose(new PhoneChoice(model.Brand == PhoneCatalog.GenericBrand ? null : model.Id, model.Screen));
     }
 
     private void Custom_TextChanged(object sender, TextChangedEventArgs e) => UpdateCustomState();

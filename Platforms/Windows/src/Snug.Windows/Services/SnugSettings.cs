@@ -9,6 +9,8 @@ namespace Snug.Windows.Services;
 public sealed class SnugSettings
 {
     public bool PhoneScreenEnabled { get; set; } = true;
+    public string RemoteMode { get; set; } = "Uu";
+    public bool AutoMatchPhoneModel { get; set; }
     public bool GesturesEnabled { get; set; } = true;
     public bool ScreenshotEnabled { get; set; }
     public int ZoomSteps { get; set; } = 2;

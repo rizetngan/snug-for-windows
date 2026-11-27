@@ -26,16 +26,57 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private string _uuViewportMode = UuViewportPreset.Classic;
     private PhoneChoice CurrentDisplayChoice => _activeDisplayPhoneChoice ?? _phoneChoice;
     private int CurrentDisplayInsetPoints => _activeDisplayInsetPoints
-        ?? UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+        ?? (UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode));
     private int CurrentPreferredBaseWidth => _activeDisplayPreferredBaseWidth
         ?? PhoneBaseWidth.AtIndex(_baseWidthOption);
     private ScreenFit CurrentScreenFit => new(CurrentDisplayChoice.Screen,
         CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
     public ScreenFit PreviewScreenFit => new(_phoneChoice.Screen,
-        UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
+        UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
         PhoneBaseWidth.AtIndex(_baseWidthOption));
     private readonly UuSessionDetector _uuDetector = new();
     private readonly CrossDeskSessionDetector _crossDeskDetector = new();
+    private readonly CrossDeskEpisode _crossDeskEpisode = new();
+    private RemoteMode _remoteMode;
+    private bool _crossDeskRestoreRunning;
+    private DateTimeOffset _lastCrossDeskRestoreAttempt;
+    private DateTimeOffset _lastCrossDeskPrepareAttempt;
+    private bool UsesCrossDesk => _remoteMode == RemoteMode.CrossDesk;
+    private bool CurrentRemoteConnected => UsesCrossDesk ? _crossDeskEpisode.IsConnected : _connection.IsConnected;
+
+    public string RemoteModeChoice
+    {
+        get => _remoteMode.ToString();
+        set
+        {
+            var next = RemoteModePolicy.Normalize(value);
+            if (next == _remoteMode) return;
+            // Never change provider ownership beneath a live display or a
+            // connected remote. Turning phone screen off releases it first.
+            if (_phoneDisplay is not null || _creatingSession || _endingSession ||
+                _connection.IsConnected || _crossDeskEpisode.IsConnected || _crossDeskRestoreRunning ||
+                HasPlacedWindow)
+            {
+                ActivityStatus = "请先断开远程并关闭手机屏，再切换远控软件";
+                _ = _timer.Dispatcher.BeginInvoke(new Action(() =>
+                    OnPropertyChanged(nameof(RemoteModeChoice))));
+                return;
+            }
+            _remoteMode = next;
+            _crossDeskEpisode.Reset();
+            _displayHold.Reset();
+            _settings.RemoteMode = next.ToString();
+            SaveSettings();
+            OnPropertyChanged(nameof(RemoteModeChoice));
+            OnPropertyChanged(nameof(RemoteModeDescription));
+            OnPropertyChanged(nameof(PreviewScreenFit));
+            ActivityStatus = UsesCrossDesk ? "先准备手机屏，再启动 CrossDesk" : "已切换到 UU 远程";
+        }
+    }
+
+    public string RemoteModeDescription => UsesCrossDesk
+        ? "提前准备手机屏；断开后归还窗口"
+        : "连接 UU 后自动创建";
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
     private readonly PhoneDisplayHold _displayHold = new();
@@ -116,6 +157,18 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public PhoneCatalog PhoneCatalog => _phoneCatalog;
     public PhoneChoice CurrentPhoneChoice => _phoneChoice;
     public string PhoneChoiceSummary => _phoneChoice.Title + "  ·  " + _phoneChoice.Screen.SizeText;
+    public bool AutoMatchPhoneModel
+    {
+        get => _settings.AutoMatchPhoneModel;
+        set
+        {
+            if (_settings.AutoMatchPhoneModel == value) return;
+            _settings.AutoMatchPhoneModel = value;
+            SaveSettings();
+            OnPropertyChanged();
+            ActivityStatus = "机型自动匹配将在下次 UU 会话生效";
+        }
+    }
     public string UuViewportMode
     {
         get => _uuViewportMode;
@@ -294,6 +347,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public AppController()
     {
         _settings = _settingsStore.Load();
+        _remoteMode = RemoteModePolicy.Normalize(_settings.RemoteMode);
         _phoneCatalog = LoadPhoneCatalog();
         var savedScreen = new PhoneScreen(_settings.PhoneScreenWidth, _settings.PhoneScreenHeight,
             _settings.PhoneScreenPoints);
@@ -686,7 +740,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             {
                 // A queued gesture must not apply to a replaced window or
                 // to a caption that moved after the user lifted their finger.
-                if (_disposed || !_connection.IsConnected || _phoneSurface?.IsVisible == true ||
+                if (_disposed || !CurrentRemoteConnected || _phoneSurface?.IsVisible == true ||
                     _placed is not { } placed || placed.Key != hit.Key ||
                     !NativeCloseHitTest.Revalidate(hit)) return;
                 var window = Windows.FirstOrDefault(w => w.Key == hit.Key) ??
@@ -1149,7 +1203,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _zoomRail?.PlaceOn(display);
         _appBackBar?.PlaceOn(display);
         _screenshotPanel?.PlaceOn(display);
-        _gestureHook.SetRegion(display, TouchScale());
+        _gestureHook.SetRegion(display, TouchScale(), UsesCrossDesk);
         SyncGestures();
     }
 
@@ -1243,6 +1297,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_phoneDisplay is null)
         {
             ActivityStatus = "没有可用的 Snug 手机屏";
+            return;
+        }
+        if (UsesCrossDesk && (!_crossDeskEpisode.IsConnected || _crossDeskRestoreRunning))
+        {
+            ActivityStatus = "请先连接 CrossDesk 手机屏";
             return;
         }
         if (_pullingWindow) return;
@@ -1500,11 +1559,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary
             + Environment.NewLine + crossDesk.Summary;
         var transitions = _connection.Update(signals, now);
+        var previousCrossDeskConnection = _crossDeskEpisode.IsConnected;
+        _crossDeskEpisode.Update(crossDesk.Presence, now);
         var wantsPhoneScreen = _connection.WantsPhoneScreen(now);
-        var keepPhoneDisplay = _displayHold.ShouldKeep(
+        var keepPhoneDisplay = UsesCrossDesk
+            ? RemoteModePolicy.KeepPreparedScreen(_remoteMode, PhoneScreenEnabled)
+            : _displayHold.ShouldKeep(
             wantsPhoneScreen || (_connection.IsConnected && _phoneDisplay is not null),
             PhoneScreenEnabled, _phoneDisplay is not null, now);
-        if (transitions.Count > 0 && _phoneDisplay is not null) SyncGestures();
+        if ((transitions.Count > 0 || previousCrossDeskConnection != _crossDeskEpisode.IsConnected)
+            && _phoneDisplay is not null) SyncGestures();
         if (transitions.Count > 0 || now - _lastAcceptanceAuditAt >= TimeSpan.FromSeconds(1))
         {
             UuCaptureAcceptanceAudit.Record("SessionState", new
@@ -1532,7 +1596,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _lastAcceptanceAuditAt = now;
         }
 
-        IsConnected = _connection.IsConnected;
+        IsConnected = CurrentRemoteConnected;
         ConnectionStatus = !IsConnected ? "等待 UU 远程" : signals.Evidence switch
         {
             UuEvidenceKind.ControllerTable => "UU 已连接 · " +
@@ -1545,6 +1609,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         };
         if (_displayHold.IsPaused && keepPhoneDisplay)
             ConnectionStatus = "UU 已暂停 · 手机屏保留";
+
+        if (UsesCrossDesk)
+        {
+            ConnectionStatus = _crossDeskEpisode.IsConnected ? "CrossDesk 已连接"
+                : crossDesk.HostRunning ? "等待 CrossDesk 连接" : "等待 CrossDesk 启动";
+            if (crossDesk.DisplayReachable == false && _phoneDisplay is not null)
+                ConnectionStatus += " · 需重新识别手机屏";
+            else if (_phoneDisplay is not null && !crossDesk.HostRunning)
+                ConnectionStatus = "手机屏已准备 · 启动 CrossDesk";
+        }
 
         if (now - _lastDisplayScan > TimeSpan.FromSeconds(2))
         {
@@ -1593,9 +1667,22 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        if (UsesCrossDesk && _crossDeskEpisode.ShouldRestore && !_connection.IsConnected && !_crossDeskRestoreRunning &&
+            !_pullingWindow && !_creatingSession && !_endingSession &&
+            now - _lastCrossDeskRestoreAttempt >= TimeSpan.FromSeconds(3))
+        {
+            _lastCrossDeskRestoreAttempt = now;
+            _ = RestoreCrossDeskWindowAsync();
+        }
+
         if (keepPhoneDisplay)
         {
-            if (_phoneDisplay is null && !_creatingSession && !_endingSession) _ = StartPhoneSessionAsync();
+            if (_phoneDisplay is null && !_creatingSession && !_endingSession &&
+                (!UsesCrossDesk || now - _lastCrossDeskPrepareAttempt >= TimeSpan.FromSeconds(10)))
+            {
+                _lastCrossDeskPrepareAttempt = now;
+                _ = StartPhoneSessionAsync();
+            }
         }
         else if (_phoneDisplay is not null && !_previewOpen && !_endingSession && !_creatingSession)
         {
@@ -1653,6 +1740,29 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private async Task RestoreCrossDeskWindowAsync()
+    {
+        _crossDeskRestoreRunning = true;
+        try
+        {
+            await _actionLane.RunAsync(async () =>
+            {
+                if (!UsesCrossDesk || !_crossDeskEpisode.ShouldRestore || _connection.IsConnected || _endingSession) return;
+                await PutBackCoreAsync();
+                if (!HasPlacedWindow)
+                {
+                    _crossDeskEpisode.MarkRestored();
+                    if (_phoneDisplay is not null) ShowPhoneList(restoreListMode: false);
+                }
+            });
+        }
+        catch (Exception error)
+        {
+            ActivityStatus = "CrossDesk 窗口恢复失败：" + error.Message;
+        }
+        finally { _crossDeskRestoreRunning = false; }
+    }
+
     private async Task StartPhoneSessionAsync()
     {
         if (_creatingSession || _endingSession || _disposed || _startupRecoveryPending) return;
@@ -1676,8 +1786,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (!_driver.IsInstallComplete)
                 throw new InvalidOperationException("虚拟显示驱动安装未完成，请在设置中修复驱动。");
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
-            _activeDisplayPhoneChoice = _phoneChoice;
-            _activeDisplayInsetPoints = UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+            var detected = !UsesCrossDesk && AutoMatchPhoneModel
+                ? _phoneCatalog.MatchSinglePhoneController(_connection.Controllers) : null;
+            _activeDisplayPhoneChoice = detected is null ? _phoneChoice : new PhoneChoice(detected.Id, detected.Screen);
+            _activeDisplayInsetPoints = UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
             _activeDisplayPreferredBaseWidth = PhoneBaseWidth.AtIndex(_baseWidthOption);
             _driver.WritePhoneProfile(_activeDisplayPhoneChoice,
                 CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
@@ -1747,7 +1859,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _activeModeWidth = CurrentScreenFit.BaseWidth;
         _placedModeWidth = _activeModeWidth;
         _showingPhoneList = true;
-        _gestureHook.SetRegion(display, TouchScale());
+        _gestureHook.SetRegion(display, TouchScale(), UsesCrossDesk);
         SyncGestures();
     }
 
@@ -1964,7 +2076,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private void SyncGestures()
     {
-        if (!GesturesEnabled || _phoneDisplay is null || !_connection.IsConnected
+        if (!GesturesEnabled || _phoneDisplay is null || !CurrentRemoteConnected
             || _phoneSurface?.IsVisible == true || _screenshots.IsCropping)
         {
             _gestureHook.Stop();
@@ -1972,7 +2084,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        _gestureHook.SetRegion(_phoneDisplay, TouchScale());
+        _gestureHook.SetRegion(_phoneDisplay, TouchScale(), UsesCrossDesk);
         if (!_gestureHook.IsRunning && !_gestureHook.Start())
             ActivityStatus = "手势监听启动失败";
     }
@@ -2186,6 +2298,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private void SaveSettings()
     {
         _settings.PhoneScreenEnabled = _phoneScreenEnabled;
+        _settings.RemoteMode = _remoteMode.ToString();
         _settings.GesturesEnabled = _gesturesEnabled;
         _settings.ZoomSteps = _defaultZoomSteps;
         _settings.AppZoomSteps = new Dictionary<string, int>(_zoomBook.Remembered, StringComparer.OrdinalIgnoreCase);

@@ -10,6 +10,7 @@ namespace Snug.Windows.Services;
 public sealed class MouseGestureHook : IDisposable
 {
     private static readonly UIntPtr InjectionMarker = new(0x534E5547);
+    private static readonly UIntPtr CrossDeskMarker = new(0x4353444D); // CSDM
     private readonly NativeMethods.LowLevelMouseProc _callback;
     private readonly Dispatcher _uiDispatcher;
     private MouseReplayLane? _replay;
@@ -21,6 +22,8 @@ public sealed class MouseGestureHook : IDisposable
             if (Equals(_region, next)) return;
             _replay?.Invalidate();
             _translator = new TouchTranslator();
+            _crossDeskInput = new CrossDeskInputPipeline();
+            _crossDeskLeftDown = false;
             _coastTimer?.Stop();
             _closeTap.Reset();
             _passthroughBrowserChrome = false;
@@ -37,9 +40,11 @@ public sealed class MouseGestureHook : IDisposable
     private Thread? _inputThread;
     private DispatcherTimer? _coastTimer;
     private volatile bool _running;
-    private sealed record GestureRegion(WindowBounds Bounds, double Scale);
+    private sealed record GestureRegion(WindowBounds Bounds, double Scale, bool CrossDesk);
     private volatile GestureRegion? _region;
     private TouchTranslator _translator = new();
+    private CrossDeskInputPipeline _crossDeskInput = new();
+    private bool _crossDeskLeftDown;
     private IntPtr _hook;
     private bool _passthroughBrowserChrome;
     private bool _disposed;
@@ -55,7 +60,7 @@ public sealed class MouseGestureHook : IDisposable
 
     public bool IsRunning => _running;
 
-    public void SetRegion(DisplayInfo? display, double scale = 1)
+    public void SetRegion(DisplayInfo? display, double scale = 1, bool crossDesk = false)
     {
         if (display is null || !PhoneDisplayModeSwitcher.IsSnugDisplay(display))
         {
@@ -80,7 +85,7 @@ public sealed class MouseGestureHook : IDisposable
             new WindowBounds(mode.PositionX, mode.PositionY,
                 checked((int)mode.PelsWidth), checked((int)mode.PelsHeight)),
             Math.Max(1, scale) *
-                Math.Max(1, (double)mode.PelsWidth / Math.Max(1, display.Bounds.Width))));
+                Math.Max(1, (double)mode.PelsWidth / Math.Max(1, display.Bounds.Width)), crossDesk));
     }
 
     private Dispatcher InputDispatcher()
@@ -146,6 +151,8 @@ public sealed class MouseGestureHook : IDisposable
         _passthroughBrowserChrome = false;
         _closeTap.Reset();
         _translator = new TouchTranslator();
+        _crossDeskInput = new CrossDeskInputPipeline();
+        _crossDeskLeftDown = false;
         _replay?.Invalidate();
         if (_hook != IntPtr.Zero) NativeMethods.UnhookWindowsHookEx(_hook);
         _hook = IntPtr.Zero;
@@ -155,6 +162,17 @@ public sealed class MouseGestureHook : IDisposable
     private void OnCoastTick(object? sender, EventArgs e)
     {
         using var dpi = new PhysicalDpiScope();
+        if (_region is { CrossDesk: true } region)
+        {
+            if (dpi.IsValid)
+            {
+                var now = (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency;
+                var result = _crossDeskInput.Tick(now, point => AcceptCrossDeskPoint(region, point), region.Scale);
+                foreach (var batch in result.Batches) DispatchCommands(batch.Commands, batch.Kind);
+            }
+            if (!_crossDeskInput.NeedsTick) _coastTimer?.Stop();
+            return;
+        }
         if (dpi.IsValid && _translator.MomentumFrame() is { } step) PostScroll(step);
         if (!_translator.IsCoasting) _coastTimer?.Stop();
     }
@@ -184,6 +202,26 @@ public sealed class MouseGestureHook : IDisposable
         var region = snapshot.Bounds;
         var inside = point.X >= region.X && point.X < region.X + region.Width
             && point.Y >= region.Y && point.Y < region.Y + region.Height;
+        if (snapshot.CrossDesk != (info.ExtraInfo == CrossDeskMarker))
+            return NativeMethods.CallNextHookEx(_hook, code, wParam, lParam);
+        if (snapshot.CrossDesk)
+        {
+            var raw = kind.Value switch
+            {
+                PointerKind.Press => CrossDeskPointerEventKind.LeftDown,
+                PointerKind.Release => CrossDeskPointerEventKind.LeftUp,
+                _ => _crossDeskLeftDown ? CrossDeskPointerEventKind.LeftDrag : CrossDeskPointerEventKind.Move
+            };
+            if (kind == PointerKind.Press) _crossDeskLeftDown = true;
+            if (kind == PointerKind.Release) _crossDeskLeftDown = false;
+            var time = (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency;
+            var result = _crossDeskInput.Take(new(raw, point, time),
+                p => AcceptCrossDeskPoint(snapshot, p), snapshot.Scale);
+            foreach (var batch in result.Batches) DispatchCommands(batch.Commands, batch.Kind);
+            if (_crossDeskInput.NeedsTick && _coastTimer is { IsEnabled: false } cdTimer) cdTimer.Start();
+            return result.PassOriginal ? NativeMethods.CallNextHookEx(_hook, code, wParam, lParam) : new IntPtr(1);
+        }
+
         // Native caption close is distinct from browser tabs, including tab
         // close icons. Check only the actual placed foreground HWND.
         var seconds = (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency;
@@ -239,6 +277,14 @@ public sealed class MouseGestureHook : IDisposable
         return response.PassOriginal
             ? NativeMethods.CallNextHookEx(_hook, code, wParam, lParam)
             : new IntPtr(1);
+    }
+
+    private static bool AcceptCrossDeskPoint(GestureRegion region, PointD point)
+    {
+        var bounds = region.Bounds;
+        return point.X >= bounds.X && point.X < bounds.X + bounds.Width &&
+            point.Y >= bounds.Y && point.Y < bounds.Y + bounds.Height &&
+            !IsNativeControl(point, region.Scale);
     }
 
     private static bool IsNativeControl(PointD point, double scale)

@@ -53,6 +53,32 @@ public sealed class PhoneModelsTests
     }
 
     [Fact]
+    public void AutomaticModelMatchingRequiresOneKnownPhoneAndExactSuffix()
+    {
+        var catalog = PhoneCatalog.FromJson(CatalogJson);
+        Assert.Equal("Apple iPhone 17 Pro Max", catalog.MatchControllerName("明明的 iPhone 17 Pro Max")?.Id);
+        Assert.Equal("华为 Mate 70 Pro", catalog.MatchControllerName("HUAWEI Mate 70 Pro")?.Id);
+        Assert.Null(catalog.MatchControllerName("iPhone 16 Pro"));
+        Assert.Null(catalog.MatchControllerName("iPhone"));
+        Assert.Null(catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Desktop)]));
+        Assert.Null(catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Phone), new("iPhone 17 Pro Max", ControllerKind.Phone)]));
+        Assert.Equal("Apple iPhone 16", catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Phone)])?.Id);
+    }
+
+    [Fact]
+    public void GenericPresetsProduceSupportedPortraitFits()
+    {
+        Assert.Equal(5, PhoneCatalog.GenericPresets.Count);
+        foreach (var preset in PhoneCatalog.GenericPresets)
+        {
+            Assert.True(preset.Screen.IsValid);
+            var fit = new ScreenFit(preset.Screen, 0);
+            Assert.InRange(fit.BaseWidth, ScreenFit.MinWidth, ScreenFit.MaxWidth);
+            Assert.True(fit.PixelSizeFor(fit.BaseWidth).Height >= 1600);
+        }
+    }
+
+    [Fact]
     public void UpstreamPhoneModelAssetLoadsWithoutDataLoss()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", "phone-models.json");

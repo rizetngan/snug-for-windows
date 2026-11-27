@@ -54,7 +54,9 @@ internal sealed class CrossDeskSessionDetector
                 _polling = true;
                 _ = Task.Run(() => Poll(deviceName));
             }
-            return _cached;
+            return DateTimeOffset.UtcNow - _lastPoll <= TimeSpan.FromSeconds(5)
+                ? _cached
+                : _cached with { LogReadable = false, Presence = RemotePresence.Unknown, DisplayReachable = null };
         }
     }
 
@@ -87,7 +89,8 @@ internal sealed class CrossDeskSessionDetector
                 {
                     ResetSources();
                     _generation = null;
-                    reading = new(processes.Length > 0, false, RemotePresence.Unknown, 0, null);
+                    reading = new(processes.Length > 0, false,
+                        processes.Length == 0 ? RemotePresence.Disconnected : RemotePresence.Unknown, 0, null);
                 }
                 else
                 {

@@ -53,13 +53,22 @@
                     <DockPanel>
                         <StackPanel>
                             <TextBlock Text="手机屏" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="连接 UU 后自动创建" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding RemoteModeDescription}" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
                         </StackPanel>
                         <ToggleButton Style="{StaticResource SwitchStyle}"
                                       IsChecked="{Binding PhoneScreenEnabled, Mode=TwoWay}"
                                       VerticalAlignment="Center"/>
                     </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
+                    <DockPanel LastChildFill="False" Margin="0,0,0,16">
+                        <TextBlock Text="远控软件" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <ComboBox DockPanel.Dock="Right" Width="165" Height="34" SelectedValuePath="Tag"
+                                  SelectedValue="{Binding RemoteModeChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  AutomationProperties.Name="远控软件">
+                            <ComboBoxItem Content="UU 远程" Tag="Uu"/>
+                            <ComboBoxItem Content="CrossDesk（测试）" Tag="CrossDesk"/>
+                        </ComboBox>
+                    </DockPanel>
                     <DockPanel LastChildFill="False">
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="手机型号" FontSize="14" FontWeight="SemiBold"/>
@@ -68,6 +77,8 @@
                         <Button DockPanel.Dock="Right" Content="更改" Click="PhoneModel_Click"
                                 VerticalAlignment="Center" Padding="14,8"/>
                     </DockPanel>
+                    <CheckBox Content="自动匹配 UU 手机型号" IsChecked="{Binding AutoMatchPhoneModel, Mode=TwoWay}"
+                              Margin="0,10,0,14" ToolTip="仅在控制端型号明确时匹配；下次连接生效"/>
                     <DockPanel LastChildFill="False">
                         <TextBlock Text="UU 画面比例" FontSize="14" FontWeight="SemiBold"
                                    VerticalAlignment="Center"/>

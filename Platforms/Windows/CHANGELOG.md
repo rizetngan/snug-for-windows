@@ -1,3 +1,10 @@
+## 0.3.0 — CrossDesk adaptation candidate
+
+- Add experimental CrossDesk remote mode with pre-created phone display, independent process/log detection, registration status and confirmed disconnect window restoration.
+- Route CrossDesk CSDM absolute touch, taps and move-only slides through the existing gesture core; keep native controls and UU input separate.
+- Add optional UU model matching and five generic portrait presets. Preserve the extension-free zoom, existing driver ownership and window layout safeguards.
+- Candidate only: live CrossDesk host/client, persistent-host and privacy replay, real mobile gestures, and UU regression acceptance still required.
+
 ## 0.2.54 — native-only context zoom (candidate, 2026-11-27)
 
 - Remove the browser extension, Native Messaging relay and packaging dependencies. Chrome/Edge use Windows UI Automation only to identify the selected tab, never to infer its percentage.

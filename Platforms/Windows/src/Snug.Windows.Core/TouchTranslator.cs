@@ -52,6 +52,21 @@ public sealed class TouchTranslator
         };
     }
 
+    // A provider may recognize a slide or hold before the ordinary mouse
+    // timing threshold. UU continues to use the unmodified Handle path.
+    public TouchResponse RecognizeCrossDesk(CrossDeskTouchGesture gesture, double time)
+    {
+        if (_phase != GesturePhase.Pending) return TouchResponse.Pass;
+        if (gesture == CrossDeskTouchGesture.Hold)
+        {
+            _pressedAt = Math.Min(_pressedAt, time - HoldDuration - 0.001);
+            return TouchResponse.Swallow();
+        }
+        _phase = GesturePhase.Scrolling;
+        var began = _wheel.Step(0, 0, ScrollPhase.Began, MomentumPhase.None, _origin);
+        return TouchResponse.Swallow(new TouchCommand(TouchCommandKind.Scroll, _origin, began));
+    }
+
     public ScrollStep? MomentumFrame()
     {
         if (_momentum is null) return null;

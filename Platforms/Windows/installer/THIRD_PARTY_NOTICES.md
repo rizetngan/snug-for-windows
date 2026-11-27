@@ -94,7 +94,7 @@ SOFTWARE.
 ## nicocart/snug-win CrossDesk adapter reference
 
 - Source: https://github.com/nicocart/snug-win/tree/03c4491
-- Adapted components: CrossDeskLogLine and CrossDeskLogFollower
+- Adapted components: CrossDeskLogLine, CrossDeskLogFollower and CrossDeskTouch
 
 MIT License
 

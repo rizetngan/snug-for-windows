@@ -11,6 +11,7 @@ public sealed class WindowManager
     private static readonly HashSet<string> ExcludedProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
         "Snug.Windows", "GameViewer", "GameViewerServer", "GameViewerService",
+        "CrossDesk", "crossdesk_service", "crossdesk_session_helper", "crossdesk_privacy_cursor_helper", "crossdesk_updater",
         "dwm", "ShellExperienceHost", "StartMenuExperienceHost",
         "SearchApp", "TextInputHost", "RuntimeBroker"
     };

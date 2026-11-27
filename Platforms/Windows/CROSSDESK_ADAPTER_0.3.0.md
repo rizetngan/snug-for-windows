@@ -1,20 +1,28 @@
-# Windows 0.3.0 - CrossDesk adaptation
+# Windows 0.3.0 - CrossDesk adaptation candidate
 
-## Reference baseline
-- Own candidate: 0.2.54 / 100122f (extension-free native zoom).
-- Original Snug: v2.9.1; main 9c7918d. Delta b7a01d2..9c7918d is documentation only.
-- nicocart/snug-win: v1.5.1 / 03c4491, MIT. CrossDesk Windows log lifecycle and display slot reference; attribution included in installer/THIRD_PARTY_NOTICES.md.
+## Baselines and credits
+- Own candidate 0.2.54 / 100122f: extension-free native context zoom.
+- zephyr4123/snug v2.9.1; main 9c7918d: no new core changes after b7a01d2.
+- nicocart/snug-win v1.5.1 / 03c4491: Windows CrossDesk log parsing, multi-profile diagnostics and touch normalizer adapted under MIT; notices included.
+- v1.5.0 controller matching and portrait ratio presets inspired the additional model-picker improvements.
 
-## Phase 1 implemented
-- CrossDeskLogLine, CrossDeskLogFollower, CrossDeskSessionEvidence: Windows host log parsing, bounded incremental reads, rotation and partial lines, explicit session evidence, GUI reattachment and slot tracking.
-- CrossDeskSessionDetector: read-only process generation and independent user/SYSTEM log observations; conflicting session evidence stays unknown. Main connection status tooltip exposes diagnostic summary.
-- Existing UU connection tracker, capture observer, virtual display lifecycle, window restoration, input hook, browser native zoom and geometry unchanged. No automatic CrossDesk activation, restart or installation.
-- Validation: 410 core tests passed (12 added). Release solution build: 0 warnings, 0 errors. Real CrossDesk host/client, live session lifecycle and touch routing not yet tested.
+## Implemented
+- Explicit persisted remote choice; existing settings migrate to UU by default.
+- CrossDesk mode prepares a Snug-owned portrait virtual display before host startup. The existing owned-driver and window-restore paths are reused; native input uses full screen ratio, without UU viewport subtraction.
+- Bounded incremental log polling across user and SYSTEM profiles, process generation, stale-reading expiry, and display registration diagnosis. Contradictory or absent evidence remains unknown, except confirmed process absence.
+- Two-second confirmed-disconnect grace; restore moved windows before returning to the App Library; keep the prepared display online for the next connection. Unknown evidence does not restore. Concurrent UU prevents automatic restoration. Provider switching requires the prior screen released and remotes disconnected.
+- CSDM marker routes CrossDesk absolute touch, click, long press and move-only slide through shared gesture translator, excluding native controls and browser chrome. Relative cursor input is passed through. Native Windows input and existing UU behavior stay separate.
+- Optional UU single-controller exact model matching applies to the next new screen, never changes current display or saved manual model. Five generic portrait presets appear in the existing picker.
+- CrossDesk helper processes excluded from app library. Existing minimized-window placement and physical display-mode guards retained; no wholesale replacement.
 
-## Integration order
-1. Verify installed CrossDesk host and actual mobile client logs; verify display registration/hotplug and persistent host behavior.
-2. Separate remote ownership/session routing from existing UU detector, preserving UU behavior. Pre-create and verify the virtual display before a host that caches display slots starts; never tear down another provider's live screen.
-3. Adapt CrossDesk absolute/relative input and mouse markers, then reuse current gesture and replay infrastructure. Explicit disconnect restores managed windows before removing owned displays.
-4. Assess manual restart only while idle, after proving screen registration failure. Automatic restart requires bounded retries, cooldown and real idle evidence.
-5. Evaluate controller model matching, generic ratio presets, minimized-window bounds, display recovery and Electron launcher handoff independently; integrate only regression-tested changes. Computer library and tray enhancements are separate.
-6. Acceptance: UU unchanged, CrossDesk iPhone/Android connection and disconnection, host restart, display switching, touch, zoom without extension, safe areas, and recovery. No release until live acceptance.
+## How to test
+1. Keep existing UU 0.2.54 installation until the candidate is accepted. Install the 0.3.0 candidate only with the previous screen exited.
+2. For UU: select UU, enable phone screen, check model selection, switch apps/tabs, drag the native zoom rail, background/return and disconnect.
+3. For CrossDesk: disconnect other remotes, turn off phone screen, choose CrossDesk, select model, enable phone screen, wait for prepared screen, then start the CrossDesk host. If it cannot see the screen, manually exit and restart its host while idle. Do not restart an active host or force-bind a different VDD.
+4. Connect a mobile CrossDesk client and select the Snug monitor. Check open/return, clicks, drag/scroll, long press, browser tabs, zoom, app layout and disconnect/restore. Keep screen prepared across reconnect. For a persistent service or privacy mode, validate replay-marker compatibility with real host logs.
+5. Turn off phone screen to remove the prepared monitor after restoring the moved window. Switch to UU only after the screen is released and remotes disconnected.
+
+## Gates
+- 421 unit/core tests passed and Release build reported zero warnings and errors before candidate packaging.
+- Real CrossDesk host/client is not installed/detected on this machine; mobile connection, actual service log ownership, privacy input replay, safe-area/rail interaction and screen hotplug remain unverified. Do not publish as a stable release yet.
+- Manual host restart guide included; no automatic restart, driver force-binding, or third-party host installation. Electron launcher handoff and broader UWP enumeration remain separate investigations; existing normal/minimized restore and mode protection are not rewritten.
