@@ -62,6 +62,7 @@ Chrome / Edge 不再依赖浏览器扩展、Native Messaging 或本地 HTTP 服�
 正式发布前会完成 CrossDesk 真机连接、点击/滑动/长按、浏览器标签切换、缩放、断开恢复，以及原有 UU 全流程回归。
 
 ## 相关资料
+- [0.3.0 发布说明](RELEASE_NOTES.md)\r\n- [安装包 SHA-256 校验值](SHA256SUMS.txt)
 
 - [Windows 安装与构建说明](../../Platforms/Windows/README.md)
 - [更新记录](../../Platforms/Windows/CHANGELOG.md)

@@ -62,6 +62,7 @@ Chrome / Edge no longer depend on a browser extension, Native Messaging or a loc
 Before stable release, the full CrossDesk mobile session and the existing UU workflow will be tested: taps, swipes, long press, browser-tab switching, zoom, disconnect and window restoration.
 
 ## Related
+- [0.3.0 release notes](RELEASE_NOTES.md)\r\n- [Package SHA-256 checksums](SHA256SUMS.txt)
 
 - [Windows installation and build guide](../../Platforms/Windows/README.en.md)
 - [Changelog](../../Platforms/Windows/CHANGELOG.md)
