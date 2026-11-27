@@ -26,14 +26,18 @@
 5. Turn off phone screen to remove the prepared monitor after restoring the moved window. Switch to UU only after the screen is released and remotes disconnected.
 
 ## Gates
-- 427 unit/core tests passed and Release build reported zero warnings and errors before candidate packaging.
+- 428 unit/core tests passed and Release build reported zero warnings and errors before candidate packaging.
 - CrossDesk Windows and Android 1.7.7 are now installed in per-user / device app locations. Android first-run privacy consent was confirmed by the user; the app is connected to the signaling server.
 - Direct IP host listens on TCP 52888. The tablet can ping the Windows PC, but inbound TCP is blocked by Windows Firewall. A temporary ADB reverse tunnel to 127.0.0.1:52888 succeeds and is reserved for test only; a narrowly scoped Private-profile firewall rule is still needed for normal LAN use.
 - After a manual retry, CrossDesk Windows reports `已连接服务器` in device-ID mode. ID mode is available for acceptance and needs no inbound firewall rule. Direct IP remains optional and requires Private-profile TCP 52888. The CrossDesk Service was not installed; it is optional for normal desktop control and only required for lock-screen/sign-in-screen control.
-- Real mobile session, privacy input replay, safe-area/rail interaction, screen hotplug and UU regression remain unverified. Do not publish as a stable release yet.
+- Authenticated mobile session and selection of Snug DISPLAY40 passed. Enhanced gestures, full-screen layout, zoom, moved-window restore and UU regression still require live validation. Do not publish as a stable release yet.
 - Manual host restart guide included; no automatic restart, driver force-binding, or third-party host installation. Electron launcher handoff and broader UWP enumeration remain separate investigations; existing normal/minimized restore and mode protection are not rewritten.
 
 ## Live acceptance update
 - Generic presets now have stable model identities; restoring an unknown preset with valid saved dimensions preserves those dimensions as a custom choice. Actual 16:10 VDD mode 1080 x 1728 created and released correctly; physical display unchanged.
 - CrossDesk portable logs are resolved relative to the running executable. Host DXGI registered the actual Snug display after startup.
-- Android reached the remote-access password prompt. Authentication, mobile touch, zoom, disconnect and UU regression are not yet verified.
+- Android authentication succeeded; host logs and Android UI confirmed the real session and selection of DISPLAY40. Normal disconnect emitted Last remote controller disconnected, privacy restoration and released screen-sharing power inhibitors.
+
+- Actual capture was 1080 x 1728, but old WPF surface measured 864 x 1382 at 96 DPI. The DLL launch entry point now sets PerMonitorV2 before WPF initialization. The new preview process verified PerMonitorV2 and 120 DPI at the 125% virtual display. Full phone-surface screenshot remains to be retested.
+- CrossDesk upstream privacy input guard admits only its own injected marker. Snug now leaves native input alone while privacy is enabled, transitioning, or unknown, suppresses enhanced gestures and zoom, and resumes only after explicit off evidence. No marker spoofing or privacy-setting change. 428/428 tests pass; Release build 0 warnings/errors.
+- Disconnect left Windows on the locked desktop; subsequent real interaction needs the user to unlock Windows. Do not treat the preview DPI check or normal session disconnect as proof of app-window restoration.

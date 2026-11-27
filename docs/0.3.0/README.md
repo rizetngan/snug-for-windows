@@ -1,6 +1,6 @@
 # Snug for Windows 0.3.0
 
-<sub>Windows x64 · 候选版 · 426 项核心测试通过</sub>
+<sub>Windows x64 · 候选版 · 428 项核心测试通过</sub>
 
 ![Snug for Windows 0.3.0 架构图](media/architecture.svg)
 
@@ -48,13 +48,15 @@ CrossDesk Android 客户端是控制端，不是远程主机。要控制 Windows
 
 **局域网直连：** CrossDesk 默认使用 TCP 52888。Windows 防火墙需要允许 CrossDesk 在专用网络接收入站连接；不要为此开放公用网络。设备 ID 模式需要信令服务器可达。
 
+**隐私屏兼容：** CrossDesk 隐私屏开启或状态未确认时，Snug 保留原生远控输入，暂停增强手势和缩放；确认隐私屏关闭后自动恢复。Snug 不修改 CrossDesk 隐私设置。
+
 ## 无扩展缩放
 
 Chrome / Edge 不再依赖浏览器扩展、Native Messaging 或本地 HTTP 服务。Snug 只识别当前窗口和活动标签页，并通过浏览器原生快捷键执行相对缩放；重置使用浏览器默认值。切换标签页或窗口时会重新确认目标，不把上一标签页的百分比套用到当前标签页。其他支持的桌面应用继续使用各自的原生缩放方式。
 
 ## 验证状态
 
-- 426 / 426 核心测试通过
+- 428 / 428 核心测试通过
 - Release 构建：0 警告、0 错误
 - Windows 10 Pro 22H2 实测
 - CrossDesk Windows / Android 1.7.7 已部署；实际移动端连接、真机触控、窗口恢复和 UU 回归仍在最终验收中

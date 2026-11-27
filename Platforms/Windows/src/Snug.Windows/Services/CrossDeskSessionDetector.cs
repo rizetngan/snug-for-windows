@@ -28,7 +28,7 @@ internal sealed class CrossDeskSessionDetector
     }
 
     internal sealed record Reading(bool HostRunning, bool LogReadable,
-        RemotePresence Presence, int Slots, bool? DisplayReachable)
+        RemotePresence Presence, int Slots, bool? DisplayReachable, bool? PrivacyBlocksInput = null)
     {
         public string Summary => !HostRunning ? "CrossDesk: 未运行"
             : !LogReadable ? "CrossDesk: 日志未确认"
@@ -56,7 +56,7 @@ internal sealed class CrossDeskSessionDetector
             }
             return DateTimeOffset.UtcNow - _lastPoll <= TimeSpan.FromSeconds(5)
                 ? _cached
-                : _cached with { LogReadable = false, Presence = RemotePresence.Unknown, DisplayReachable = null };
+                : _cached with { LogReadable = false, Presence = RemotePresence.Unknown, DisplayReachable = null, PrivacyBlocksInput = null };
         }
     }
 
@@ -167,7 +167,9 @@ internal sealed class CrossDeskSessionDetector
                     var slotSource = readable.Where(s => s.Slots.Count > 0)
                         .OrderByDescending(s => s.LastEvent).FirstOrDefault();
                     var reachable = deviceName is null ? null : slotSource?.CanSeeDisplay(deviceName);
-                    reading = new(true, readable.Count > 0, presence, slotSource?.Slots.Count ?? 0, reachable);
+                    var privacy = readable.Where(s => s.PrivacyBlocksInput.HasValue).Select(s => s.PrivacyBlocksInput).Distinct().ToArray();
+                    reading = new(true, readable.Count > 0, presence, slotSource?.Slots.Count ?? 0, reachable,
+                        privacy.Length == 1 ? privacy[0] : null);
                 }
             }
             finally

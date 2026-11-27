@@ -1,6 +1,6 @@
 # Snug for Windows 0.3.0
 
-<sub>Windows x64 · Candidate · 426 core tests passing</sub>
+<sub>Windows x64 · Candidate · 428 core tests passing</sub>
 
 ![Snug for Windows 0.3.0 architecture](media/architecture.svg)
 
@@ -48,13 +48,15 @@ The CrossDesk Android app is a controller, not a remote host. To control Windows
 
 **Direct LAN:** CrossDesk uses TCP port 52888 by default. Windows Firewall must allow inbound CrossDesk traffic on the Private profile; do not open it on Public networks. Device-ID mode requires access to the signaling server.
 
+**Privacy mode:** Snug keeps native remote input and suspends enhanced gestures and zoom while CrossDesk privacy is active or unknown. Enhancements resume once privacy is confirmed off. Snug does not change CrossDesk privacy settings.
+
 ## Native zoom, no extension
 
 Chrome / Edge no longer depend on a browser extension, Native Messaging or a local HTTP service. Snug identifies the foreground window and active tab, then applies native relative zoom shortcuts; reset uses the browser's configured default. It rechecks the target before each action and never applies a previous tab's percentage to the current tab. Other supported desktop apps continue to use their native zoom commands.
 
 ## Validation status
 
-- 426 / 426 core tests passing
+- 428 / 428 core tests passing
 - Release build: 0 warnings, 0 errors
 - Verified on Windows 10 Pro 22H2
 - CrossDesk Windows / Android 1.7.7 deployed; real mobile connection, touch, window restoration and UU regression are still in final acceptance

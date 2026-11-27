@@ -29,6 +29,7 @@ public abstract record CrossDeskLogEvent
 
     /// <summary>Last remote controller disconnected.</summary>
     public sealed record LastControllerLeft : CrossDeskLogEvent;
+    public sealed record PrivacyChanged(bool BlocksInput, bool EnablingConnection) : CrossDeskLogEvent;
 
     /// <summary>Capturer ignored a display added after startup.</summary>
     public sealed record UnregisteredDisplayIgnored(string Name, int Index) : CrossDeskLogEvent;
@@ -168,9 +169,15 @@ public sealed record CrossDeskLogLine(string Stamp, CrossDeskLogEvent Event)
             return new CrossDeskLogEvent.LastControllerLeft();
         if (message.Equals(AttachedToPersistentHostPhrase, StringComparison.Ordinal))
             return new CrossDeskLogEvent.AttachedToPersistentHost();
-        if (message.StartsWith("Privacy:", StringComparison.Ordinal)
-            && message.EndsWith(PrivacyEnablingOnConnectionReason, StringComparison.Ordinal))
-            return new CrossDeskLogEvent.ControllerConnected();
+        if (message.StartsWith("Privacy: state=", StringComparison.Ordinal))
+        {
+            var m = Regex.Match(message.ToString(), @"^Privacy: state=(\d+), overlay=(true|false), input_blocked=(true|false), reason=");
+            if (!m.Success) return null;
+            var state = m.Groups[1].Value;
+            return new CrossDeskLogEvent.PrivacyChanged(
+                state is not ("0" or "1") || m.Groups[2].Value == "true" || m.Groups[3].Value == "true",
+                message.EndsWith(PrivacyEnablingOnConnectionReason, StringComparison.Ordinal));
+        }
         if (message.StartsWith(SystemAudioCaptureStartedPrefix, StringComparison.Ordinal)
             && SystemAudioCaptureStartedRegex.IsMatch(message.ToString()))
             return new CrossDeskLogEvent.ControllerConnected();

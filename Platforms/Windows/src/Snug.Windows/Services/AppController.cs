@@ -41,7 +41,9 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private bool _crossDeskRestoreRunning;
     private DateTimeOffset _lastCrossDeskRestoreAttempt;
     private DateTimeOffset _lastCrossDeskPrepareAttempt;
+    private bool? _crossDeskPrivacyBlocksInput;
     private bool UsesCrossDesk => _remoteMode == RemoteMode.CrossDesk;
+    private bool CanEnhanceRemoteInput => !UsesCrossDesk || _crossDeskPrivacyBlocksInput == false;
     private bool CurrentRemoteConnected => UsesCrossDesk ? _crossDeskEpisode.IsConnected : _connection.IsConnected;
 
     public string RemoteModeChoice
@@ -64,6 +66,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             }
             _remoteMode = next;
             _crossDeskEpisode.Reset();
+            _crossDeskPrivacyBlocksInput = null;
             _displayHold.Reset();
             _settings.RemoteMode = next.ToString();
             SaveSettings();
@@ -1320,7 +1323,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             var canZoom = ZoomBook.IsZoomable(window.ExecutablePath, window.AppName);
             // The global default is an explicit temporary phone-zoom setting.
             // A different window's last manual gesture must never be inherited.
-            var zoomSteps = canZoom
+            var zoomSteps = canZoom && CanEnhanceRemoteInput
                 ? ZoomContext.InitialTemporarySteps(window.ExecutablePath, DefaultZoomSteps)
                 : 0;
 
@@ -1547,6 +1550,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         var now = DateTimeOffset.UtcNow;
         var signals = _uuDetector.Sample();
         var crossDesk = _crossDeskDetector.Sample(_phoneDisplay?.DeviceName);
+        var privacyChanged = _crossDeskPrivacyBlocksInput != crossDesk.PrivacyBlocksInput;
+        _crossDeskPrivacyBlocksInput = crossDesk.PrivacyBlocksInput;
         ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary
             + Environment.NewLine + crossDesk.Summary;
         var transitions = _connection.Update(signals, now);
@@ -1558,7 +1563,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             : _displayHold.ShouldKeep(
             wantsPhoneScreen || (_connection.IsConnected && _phoneDisplay is not null),
             PhoneScreenEnabled, _phoneDisplay is not null, now);
-        if ((transitions.Count > 0 || previousCrossDeskConnection != _crossDeskEpisode.IsConnected)
+        if ((transitions.Count > 0 || previousCrossDeskConnection != _crossDeskEpisode.IsConnected || (UsesCrossDesk && privacyChanged))
             && _phoneDisplay is not null) SyncGestures();
         if (transitions.Count > 0 || now - _lastAcceptanceAuditAt >= TimeSpan.FromSeconds(1))
         {
@@ -1605,6 +1610,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         {
             ConnectionStatus = _crossDeskEpisode.IsConnected ? "CrossDesk 已连接"
                 : crossDesk.HostRunning ? "等待 CrossDesk 连接" : "等待 CrossDesk 启动";
+            if (privacyChanged && _phoneDisplay is { } privacyDisplay && !_showingPhoneList && HasPlacedWindow)
+                ShowHomeBar(privacyDisplay);
+            if (_crossDeskEpisode.IsConnected && !CanEnhanceRemoteInput)
+                ConnectionStatus += _crossDeskPrivacyBlocksInput == true ? " · 隐私屏：原生操作" : " · 隐私状态待确认";
             if (crossDesk.DisplayReachable == false && _phoneDisplay is not null)
                 ConnectionStatus += " · 需重新识别手机屏";
             else if (_phoneDisplay is not null && !crossDesk.HostRunning)
@@ -1882,7 +1891,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             record.ExecutablePath, record.AppName);
         var isAppZoomable = ZoomBook.IsZoomable(
             record.ExecutablePath, record.AppName);
-        if (!isBrowser && !isAppZoomable)
+        if (!CanEnhanceRemoteInput || (!isBrowser && !isAppZoomable))
         {
             _zoomRail?.Hide();
             return;
@@ -1937,14 +1946,14 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             ? _browserZoomObservation : null;
 
     private bool ZoomSessionMatches(ZoomTarget target) =>
-        !_disposed && !_endingSession && !_creatingSession && !_pullingWindow &&
+        CanEnhanceRemoteInput && !_disposed && !_endingSession && !_creatingSession && !_pullingWindow &&
         !_showingPhoneList && _phoneDisplay is not null && _placed is { } record &&
         record.Key == target.Window && record.CapturedAt == target.Session &&
         BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName) == target.IsBrowser;
 
     public ZoomTarget? GetCurrentZoomTarget()
     {
-        if (_disposed || _endingSession || _creatingSession || _pullingWindow ||
+        if (!CanEnhanceRemoteInput || _disposed || _endingSession || _creatingSession || _pullingWindow ||
             _showingPhoneList || _phoneDisplay is null || _placed is not { } record) return null;
         if (BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName))
         {
@@ -1957,7 +1966,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     public void RefreshBrowserZoom(bool force = false)
     {
-        if (_disposed || _endingSession || _creatingSession || _pullingWindow ||
+        if (!CanEnhanceRemoteInput || _disposed || _endingSession || _creatingSession || _pullingWindow ||
             _showingPhoneList || _phoneDisplay is null || _zoomRail?.IsVisible != true ||
             _placed is not { } record ||
             !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return;
@@ -2067,7 +2076,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private void SyncGestures()
     {
-        if (!GesturesEnabled || _phoneDisplay is null || !CurrentRemoteConnected
+        if (!CanEnhanceRemoteInput || !GesturesEnabled || _phoneDisplay is null || !CurrentRemoteConnected
             || _phoneSurface?.IsVisible == true || _screenshots.IsCropping)
         {
             _gestureHook.Stop();

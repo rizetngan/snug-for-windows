@@ -11,6 +11,8 @@ public sealed class CrossDeskSessionEvidence
     private Dictionary<int, CrossDeskLogEvent.DisplaySlot>? _previousSlots;
     private RemotePresence _presence;
     private RemotePresence _previousPresence;
+    private bool? _previousPrivacy;
+    public bool? PrivacyBlocksInput { get; private set; }
     private bool _attachedGui;
     private DateTimeOffset? _lastEvent;
     public RemotePresence Presence => _presence;
@@ -28,10 +30,12 @@ public sealed class CrossDeskSessionEvidence
                 {
                     _previousSlots = new(_slots);
                     _previousPresence = _presence;
+                    _previousPrivacy = PrivacyBlocksInput;
                 }
                 _slots.Clear();
                 _attachedGui = false;
                 _presence = RemotePresence.Unknown;
+                PrivacyBlocksInput = null;
                 break;
             case CrossDeskLogEvent.AttachedToPersistentHost:
                 _attachedGui = true;
@@ -39,9 +43,14 @@ public sealed class CrossDeskSessionEvidence
                 if (_previousSlots is not null)
                     foreach (var slot in _previousSlots) _slots[slot.Key] = slot.Value;
                 _presence = _previousPresence;
+                PrivacyBlocksInput = _previousPrivacy;
                 break;
             case CrossDeskLogEvent.DisplaySlot slot when !_attachedGui:
                 _slots[slot.Slot] = slot;
+                break;
+            case CrossDeskLogEvent.PrivacyChanged privacy:
+                PrivacyBlocksInput = privacy.BlocksInput;
+                if (privacy.EnablingConnection) _presence = RemotePresence.Connected;
                 break;
             case CrossDeskLogEvent.SharingBegan:
             case CrossDeskLogEvent.ControllerConnected:
@@ -66,5 +75,6 @@ public sealed class CrossDeskSessionEvidence
         _presence = _previousPresence = RemotePresence.Unknown;
         _attachedGui = false;
         _lastEvent = null;
+        PrivacyBlocksInput = _previousPrivacy = null;
     }
 }

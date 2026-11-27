@@ -15,7 +15,7 @@ public sealed class CrossDeskEvidenceTests
     [InlineData("Requested display and system idle-sleep inhibition for screen sharing", typeof(CrossDeskLogEvent.SharingBegan))]
     [InlineData("Released screen sharing power inhibitors", typeof(CrossDeskLogEvent.SharingEnded))]
     [InlineData("Last remote controller disconnected; recovering privacy, reason=connection_closed", typeof(CrossDeskLogEvent.LastControllerLeft))]
-    [InlineData("Privacy: state=2, overlay=false, input_blocked=false, reason=Enabling privacy on connection", typeof(CrossDeskLogEvent.ControllerConnected))]
+    [InlineData("Privacy: state=2, overlay=false, input_blocked=false, reason=Enabling privacy on connection", typeof(CrossDeskLogEvent.PrivacyChanged))]
     [InlineData("System audio capture started (attempt 1)", typeof(CrossDeskLogEvent.ControllerConnected))]
     [InlineData("Local display [1:DISPLAY1]", typeof(CrossDeskLogEvent.ControllerConnected))]
     [InlineData("GUI attached to persistent host; no second signaling login", typeof(CrossDeskLogEvent.AttachedToPersistentHost))]
@@ -62,6 +62,27 @@ public sealed class CrossDeskEvidenceTests
         state.Reset();
         Assert.Equal(RemotePresence.Unknown, state.Presence);
         Assert.Null(state.CanSeeDisplay("DISPLAY1"));
+    }
+
+    [Fact]
+    public void PrivacyTransitionsConservativelyProtectNativeRemoteInput()
+    {
+        var state = new CrossDeskSessionEvidence();
+        state.Observe(Line("Logger initialized"), Start);
+        Assert.Null(state.PrivacyBlocksInput);
+        state.Observe(Line("Privacy: state=2, overlay=false, input_blocked=false, reason=Enabling privacy on connection"), Start.AddSeconds(1));
+        Assert.True(state.PrivacyBlocksInput);
+        Assert.Equal(RemotePresence.Connected, state.Presence);
+        state.Observe(Line("Privacy: state=3, overlay=true, input_blocked=true, reason=Privacy screen is on"), Start.AddSeconds(2));
+        Assert.True(state.PrivacyBlocksInput);
+        state.Observe(Line("Privacy: state=4, overlay=true, input_blocked=true, reason=Restoring local desktop and input"), Start.AddSeconds(3));
+        Assert.True(state.PrivacyBlocksInput);
+        state.Observe(Line("Privacy: state=1, overlay=false, input_blocked=false, reason=Privacy screen is off"), Start.AddSeconds(4));
+        Assert.False(state.PrivacyBlocksInput);
+        state.Observe(Line("Privacy: state=3, overlay=true, input_blocked=true, reason=Privacy screen is on"), Start.AddSeconds(2));
+        Assert.False(state.PrivacyBlocksInput);
+        state.Reset();
+        Assert.Null(state.PrivacyBlocksInput);
     }
 
     [Fact]

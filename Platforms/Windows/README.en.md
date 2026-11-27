@@ -16,7 +16,7 @@ Version 0.2.48 adds a bottom UU phone-safe area, a Chrome/Edge left-side zoom ra
 - Chrome / Edge use native Windows tab identification and relative zoom; no browser extension or Native Messaging is required.
 - Optional single-phone UU model matching (off by default) and five generic aspect presets.
 
-[0.3.0 illustrated guide and architecture](../../docs/0.3.0/README.en.md). Candidate only: 426 core tests pass; real CrossDesk mobile connection and UU regression are still in acceptance.
+[0.3.0 illustrated guide and architecture](../../docs/0.3.0/README.en.md). Candidate only: 428 core tests pass; real CrossDesk mobile connection and UU regression are still in acceptance.
 ## Installation and usage
 
 1. Install UU Remote and the Snug Windows x64 installer on the controlled computer. First installation requests administrator approval to deploy the signed virtual display driver and register the SYSTEM-level UU capture monitor startup task.

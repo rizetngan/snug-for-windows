@@ -12,7 +12,7 @@
 
 ## Validation
 
-- 426 / 426 core tests passed.
+- 428 / 428 core tests passed.
 - Release build: 0 warnings, 0 errors.
 - Windows 10 Pro 22H2 (build 19045).
 - Chrome / Edge audit found no Snug extension or Native Messaging registration.
