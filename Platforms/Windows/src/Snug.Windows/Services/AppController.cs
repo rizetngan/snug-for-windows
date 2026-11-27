@@ -401,10 +401,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         foreach (var display in _displayEnumerator.GetDisplays()) Displays.Add(display);
         _availableSnugDisplay = _displayEnumerator.FindSnugDisplay();
 
-        if (_phoneDisplay is { } old && _availableSnugDisplay is { } fresh &&
-            PhoneLayoutValidation.GeometryChanged(old, fresh) &&
-            !_creatingSession && !_endingSession && !_pullingWindow &&
-            !_recoveringDialog && !_recoveringLostWindow && !_geometryReconcilePending && !_screenshots.IsCropping && _modeGate.CurrentCount == 1)
+        if (!_disposed && !_creatingSession && !_endingSession && !_pullingWindow &&
+            !_recoveringDialog && !_recoveringLostWindow && !_geometryReconcilePending &&
+            _askingDialogKey is null && !_screenshots.IsCropping && _modeGate.CurrentCount == 1 &&
+            _phoneDisplay is { } old && _availableSnugDisplay is { } fresh &&
+            NeedsPhoneReconciliation(old, fresh))
         {
             _geometryReconcilePending = true;
             _ = _actionLane.RunAsync(async () =>
@@ -428,17 +429,35 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(Displays));
     }
 
+    private bool NeedsPhoneReconciliation(DisplayInfo old, DisplayInfo fresh)
+    {
+        if (PhoneLayoutValidation.GeometryChanged(old, fresh)) return true;
+        if (_showingPhoneList || _placed is not { } placed ||
+            Snug.Windows.Interop.NativeMethods.IsIconic(new IntPtr(placed.Key.Handle)) ||
+            !_windowManager.IsResponsive(placed.Key)) return false;
+        return _windowManager.ReadBounds(placed.Key) is { } actual &&
+            !PhoneLayoutValidation.Fits(actual, CurrentAppArea(fresh));
+    }
+
     private async Task ReconcilePhoneGeometryAsync()
     {
         if (_disposed || _phoneDisplay is not { } old || _creatingSession || _endingSession ||
             _pullingWindow || _recoveringDialog || _recoveringLostWindow ||
-            _screenshots.IsCropping || _modeGate.CurrentCount != 1) return;
+            _askingDialogKey is not null || _screenshots.IsCropping || _modeGate.CurrentCount != 1) return;
         var fresh = _displayEnumerator.FindSnugDisplay();
-        if (fresh is null || !PhoneLayoutValidation.GeometryChanged(old, fresh)) return;
+        if (fresh is null || !NeedsPhoneReconciliation(old, fresh)) return;
         try
         {
-            // Restore the requested native mode before reusing its geometry.
-            if (!await ChangePhoneModeAsync(_activeModeWidth))
+            // Prefer a valid native mode already selected by Windows/UU.
+            // Do not fight the remote client by forcing the old larger mode.
+            var actualWidth = PhoneLayoutValidation.MatchingWidth(CurrentScreenFit, fresh.Bounds);
+            if (actualWidth is { } width &&
+                _modeSwitcher.HasMode(fresh, new VddResolutionMode(fresh.Bounds.Width, fresh.Bounds.Height, 60)))
+            {
+                _activeModeWidth = width;
+                ApplyPhoneGeometry(fresh);
+            }
+            else if (!await ChangePhoneModeAsync(_activeModeWidth))
             {
                 // Do not leave the app and bars on stale geometry after a failed mode switch.
                 if (_disposed || _endingSession) return;
@@ -459,11 +478,12 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                     !PhoneLayoutValidation.Fits(actual, area))
                 {
                     await PutBackCoreAsync();
-                    ShowPhoneList();
+                    ShowPhoneList(restoreListMode: false);
                     return;
                 }
                 _placed = placed with { FilledBounds = actual };
                 _ledger.Save(_placed);
+                _placedModeWidth = _activeModeWidth;
                 ShowHomeBar(display);
             }
         }

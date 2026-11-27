@@ -5,7 +5,7 @@
 - Validate the actual window rectangle after fitting and same-session re-entry; attempt normal restoration and return to the catalog when the fit fails.
 - Retry outstanding startup restore records through the existing restoration path before starting another phone session, preserving the ledger on failures. Ensure end-session failures release their transition guard.
 - Preserve existing content zoom interactions, preferences, virtual-display driver and UU session policy.
-- 13 new core regression cases for stale 1640x3170 layout on 1080x2088 mode, logical versus physical dimensions, DPI/origin changes and fit boundaries. Real iPhone/UU acceptance remains pending; 0.2.51 remains the public release.
+- 15 new core regression cases for stale 1640x3170 layout on 1080x2088 mode, logical versus physical dimensions, DPI/origin changes, fit boundaries, same-mode app drift, and reuse of a valid native mode. Real iPhone/UU acceptance remains pending; 0.2.51 remains the public release.
 ## 0.2.51 — iPhone notch safe area and app-switch taskbar recovery (release, 2026-11-26)
 
 - Real iPhone 13 Pro reproduction: Chrome was placed at raw Y=0 on a 1640x3170 Snug VDD, covering the notch region. The secondary Windows taskbar can also overtake the HomeBar after switching applications.

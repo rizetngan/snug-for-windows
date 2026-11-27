@@ -5,6 +5,25 @@ namespace Snug.Windows.Core.Tests;
 public sealed class PhoneLayoutValidationTests
 {
     [Fact]
+    public void WindowMovedBackToZeroViolatesNotchEvenWhenDisplayIsUnchanged()
+    {
+        var area = UuMobileOverlaySafeArea.AppBounds(new(1920,0,1080,2088));
+        Assert.False(PhoneLayoutValidation.Fits(new(1920,0,1080,2028),area));
+        Assert.True(PhoneLayoutValidation.Fits(area,area));
+    }
+
+    [Fact]
+    public void ReusesValidNativeModeWithoutForcingPreviousResolution()
+    {
+        var fit = new ScreenFit(PhoneChoice.Standard.Screen,45);
+        var native = fit.PixelSizeFor(fit.BaseWidth);
+        var bounds = new WindowBounds(1920,0,(int)native.Width,(int)native.Height);
+        Assert.Equal(fit.BaseWidth,PhoneLayoutValidation.MatchingWidth(fit,bounds));
+        Assert.Null(PhoneLayoutValidation.MatchingWidth(fit,bounds with { Height=bounds.Height-1 }));
+        Assert.Null(PhoneLayoutValidation.MatchingWidth(fit,bounds with { Width=bounds.Width/2,Height=bounds.Height/2 }));
+    }
+
+    [Fact]
     public void RejectsStaleLargeWindowAfterModeReset()
     {
         var old = UuMobileOverlaySafeArea.AppBounds(new(1920, 0, 1640, 3170));

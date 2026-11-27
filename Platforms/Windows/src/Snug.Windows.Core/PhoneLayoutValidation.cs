@@ -11,6 +11,16 @@ public static class PhoneLayoutValidation
         Math.Abs(previous.DpiScaleX - current.DpiScaleX) > 0.001 ||
         Math.Abs(previous.DpiScaleY - current.DpiScaleY) > 0.001;
 
+    public static int? MatchingWidth(ScreenFit fit, WindowBounds bounds)
+    {
+        foreach (var width in fit.Widths)
+        {
+            var size = fit.PixelSizeFor(width);
+            if (MatchesMode(bounds, (int)size.Width, (int)size.Height)) return width;
+        }
+        return null;
+    }
+
     // Native applications can choose a smaller frame. Never accept an invalid
     // frame, wrong origin, or a window extending beyond the safe app area.
     public static bool Fits(WindowBounds actual, WindowBounds area) =>
