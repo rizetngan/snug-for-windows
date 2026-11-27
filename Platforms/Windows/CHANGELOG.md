@@ -1,3 +1,11 @@
+## 0.2.53 — context-aware zoom (candidate, 2026-11-27)
+
+- Real Chrome 158 test reproduced stale native UIA zoom tooltip: tab A had 200%, tab B's independently measured page pixel ratio was 100%, but UIA reported 200% on B. UIA is no longer used as a zoom-value source.
+- Add optional Chrome/Edge companion (BrowserZoomExtension) using native tabs.getZoom/setZoom APIs and exact active tab/window IDs. A same-user Windows named pipe and small Native Messaging host relay messages; no web-content permission, URL/title collection, profile access or network listener.
+- Track the current browser window/profile/tab and placement session; reject stale drag targets, read external shortcut changes, and display only actual API-confirmed percentages. Reset preserves the browser's configured default and native same-site zoom behavior.
+- Without the companion, use native selected-tab identity only for relative zoom. Unobservable desktop apps use relative gestures, not an inherited absolute value. Manual gestures remain native app changes and are not recorded/replayed across other windows or unknown panes. Explicit temporary default zoom remains for existing classified recovery scopes only.
+- Preserve full-track touch dragging, auto-collapse and all 0.2.52 phone geometry/recovery changes.
+- Candidate verification: 407 core tests, 7 extension API mock tests, 7 real host/pipe transport checks. Real Chrome/Edge companion installation and iPhone UU acceptance are still pending. Main/public release remain 0.2.51.
 ## 0.2.52 — physical layout reconciliation (candidate, 2026-11-27)
 
 - Fix stale phone display geometry after a native mode reset or DPI change. Accept a mode only when the physical rectangle matches the requested native resolution exactly.

@@ -11,7 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Snug.Windows</AssemblyName>
     <RootNamespace>Snug.Windows</RootNamespace>
-    <Version>0.2.52</Version>
+    <Version>0.2.53</Version>
     <Product>Snug for Windows</Product>
     <Description>Snug — Windows platform support for the original mobile remote workspace.</Description>
     <Copyright>Copyright (c) 2026 AoyamaShou; Copyright (c) 2026 zephyr4123</Copyright>
@@ -24,6 +24,9 @@
     <ProjectReference Include="..\Snug.Windows.Core\Snug.Windows.Core.csproj" />
     <PackageReference Include="System.Management" Version="10.0.0" />
     <Content Include="Snug.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\browser-extension\manifest.json" Link="BrowserZoomExtension\manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\browser-extension\background.js" Link="BrowserZoomExtension\background.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\browser-extension\README.md" Link="BrowserZoomExtension\README.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\installer\payload\Driver\Install-SnugDriver.ps1" Link="Driver\Install-SnugDriver.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\installer\payload\Driver\snug_vdd_settings.xml" Link="Driver\snug_vdd_settings.xml" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\installer\payload\Driver\snug_user_edid.bin" Link="Driver\snug_user_edid.bin" CopyToOutputDirectory="PreserveNewest" />

@@ -38,8 +38,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
     private readonly PhoneDisplayHold _displayHold = new();
-    private int _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
-    private bool _browserZoomKnown;
+    private readonly BrowserZoomBridge _browserZoomBridge = new();
+    private BrowserZoomObservation? _browserZoomObservation;
+    private WindowKey? _browserZoomWindow;
+    private DateTimeOffset _browserZoomSession;
+    private DateTimeOffset _browserZoomReadAt;
+    private DateTimeOffset _lastBrowserZoomRequest;
+    private bool _browserZoomReadPending;
+    private bool _zoomCommandRunning;
+    private int _browserZoomEpoch;
+    private static readonly TimeSpan BrowserZoomFreshness = TimeSpan.FromMilliseconds(1600);
     private readonly Screenshots _screenshots = new(new WindowScreenshotService());
     private ScreenshotPanelWindow? _screenshotPanel;
     private readonly VddDriverClient _driver = new();
@@ -372,6 +380,16 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public void Start()
     {
         _startedAt = DateTimeOffset.UtcNow;
+        try
+        {
+            BrowserZoomBridge.RegisterInstalledHost();
+            _browserZoomBridge.Start();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException)
+        {
+            ActivityStatus = "浏览器缩放桥接不可用，将使用相对缩放";
+        }
         Refresh();
         _startupRecoveryPending = _ledger.Load() is not null;
         _ = LoadInstalledAppsAsync();
@@ -1260,8 +1278,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
             var display = _phoneDisplay!;
             var canZoom = ZoomBook.IsZoomable(window.ExecutablePath, window.AppName);
+            // The global default is an explicit temporary phone-zoom setting.
+            // A different window's last manual gesture must never be inherited.
             var zoomSteps = canZoom
-                ? _zoomBook.StepsFor(window.ExecutablePath, window.AppName, DefaultZoomSteps)
+                ? ZoomContext.InitialTemporarySteps(window.ExecutablePath, DefaultZoomSteps)
                 : 0;
 
             var record = await Task.Run(() =>
@@ -1297,8 +1317,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             });
 
             _placed = record;
-            _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
-            _browserZoomKnown = false;
+            InvalidateBrowserZoom();
             if (!await FitMovedWindowAsync(window))
             {
                 await PutBackAsync();
@@ -1324,11 +1343,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _placedModeWidth = _activeModeWidth;
             _showingPhoneList = false;
 
-            if (canZoom)
-            {
-                _zoomBook.Remember(window.ExecutablePath, window.AppName, zoomSteps);
-                SaveSettings();
-            }
 
             _phoneSurface?.Hide();
             SyncGestures();
@@ -1417,7 +1431,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
-        _browserZoomKnown = false;
+        InvalidateBrowserZoom();
         _appBackBar?.Hide();
         if (result.Restored) _placedModeWidth = CurrentScreenFit.BaseWidth;
         if (_phoneSurface is { IsVisible: false } && _phoneDisplay is not null) _phoneSurface.Show();
@@ -1441,6 +1455,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
+        InvalidateBrowserZoom();
         _appBackBar?.Hide();
         if (_phoneSurface is { } surface && _phoneDisplay is { } display)
         {
@@ -1480,6 +1495,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         // the VDD mode settles. Keep upstream's HomeBar visible without taking
         // keyboard focus; the method is a no-op unless that taskbar overlaps it.
         _homeBar?.EnsureAboveTaskbar();
+        RefreshBrowserZoom();
 
         if (_askingDialogKey is { } asking
             && !_recoveringDialog && !_windowManager.IsAlive(asking))
@@ -1779,13 +1795,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         _zoomRail ??= new ZoomRailWindow(this);
         if (isBrowser)
-            _zoomRail.SetBrowserLevel(_browserZoomKnown ? _browserZoomIndex : null);
+        {
+            EnsureBrowserZoomContext(record);
+            _zoomRail.SetBrowserState(record.Key, record.CapturedAt, CurrentBrowserObservation(record));
+        }
         else
-            _zoomRail.SetAppLevel(record.ZoomSteps);
+        {
+            InvalidateBrowserZoom();
+            _zoomRail.SetAppRelative(record.Key, record.CapturedAt);
+        }
 
         _zoomRail.PlaceOn(display);
         _zoomRail.Show();
         _zoomRail.PlaceOn(display);
+        if (isBrowser) RefreshBrowserZoom(force: true);
     }
 
     private void ShowAppBackBar(DisplayInfo display, string appName, bool canZoom, int zoomSteps)
@@ -1796,63 +1819,162 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _appBackBar.Show();
     }
 
-    public bool SetCurrentBrowserZoomIndex(int index)
+    private void InvalidateBrowserZoom()
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null || _phoneDisplay is null || _showingPhoneList
-            || !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return false;
-        index = BrowserZoomLevels.ClampIndex(index);
-        var browser = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (!_windowManager.ApplyBrowserZoom(browser, index))
-        {
-            ActivityStatus = "浏览器未响应缩放操作";
-            return false;
-        }
-        _browserZoomIndex = index;
-        _browserZoomKnown = true;
-        _zoomRail?.SetBrowserLevel(index);
-        ActivityStatus = $"网页缩放 {BrowserZoomLevels.PercentAt(index)}%";
-        return true;
+        _browserZoomEpoch++;
+        _browserZoomObservation = null;
+        _browserZoomWindow = null;
+        _browserZoomSession = default;
+        _browserZoomReadAt = default;
     }
 
-    public bool SetCurrentAppZoomSteps(int steps)
+    private void EnsureBrowserZoomContext(WindowRestoreRecord record)
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null || _phoneDisplay is null || _showingPhoneList
-            || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return false;
+        if (_browserZoomWindow == record.Key && _browserZoomSession == record.CapturedAt) return;
+        InvalidateBrowserZoom();
+        _browserZoomWindow = record.Key;
+        _browserZoomSession = record.CapturedAt;
+    }
 
-        var next = Math.Clamp(steps, ZoomBook.MinimumSteps, ZoomBook.MaximumSteps);
-        var delta = next - record.ZoomSteps;
-        if (delta == 0)
+    private BrowserZoomObservation? CurrentBrowserObservation(WindowRestoreRecord record) =>
+        _browserZoomWindow == record.Key && _browserZoomSession == record.CapturedAt &&
+        DateTimeOffset.UtcNow - _browserZoomReadAt <= BrowserZoomFreshness
+            ? _browserZoomObservation : null;
+
+    private bool ZoomSessionMatches(ZoomTarget target) =>
+        !_disposed && !_endingSession && !_creatingSession && !_pullingWindow &&
+        !_showingPhoneList && _phoneDisplay is not null && _placed is { } record &&
+        record.Key == target.Window && record.CapturedAt == target.Session &&
+        BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName) == target.IsBrowser;
+
+    public ZoomTarget? GetCurrentZoomTarget()
+    {
+        if (_disposed || _endingSession || _creatingSession || _pullingWindow ||
+            _showingPhoneList || _phoneDisplay is null || _placed is not { } record) return null;
+        if (BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName))
         {
-            _zoomRail?.SetAppLevel(next);
-            return true;
+            var actual = CurrentBrowserObservation(record);
+            return actual is null ? null : new(record.Key, record.CapturedAt, actual.TabIdentity, true, actual.Percent);
         }
+        return ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)
+            ? new(record.Key, record.CapturedAt, null, false, null) : null;
+    }
 
-        var window = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (!_windowManager.Zoom(window, delta))
+    public void RefreshBrowserZoom(bool force = false)
+    {
+        if (_disposed || _endingSession || _creatingSession || _pullingWindow ||
+            _showingPhoneList || _phoneDisplay is null || _zoomRail?.IsVisible != true ||
+            _placed is not { } record ||
+            !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return;
+
+        EnsureBrowserZoomContext(record);
+        if (_browserZoomObservation is not null && CurrentBrowserObservation(record) is null)
         {
-            ActivityStatus = "应用未响应缩放操作，窗口保持原状";
-            return false;
+            _browserZoomObservation = null;
+            _zoomRail.SetBrowserState(record.Key, record.CapturedAt, null);
         }
+        if (_zoomCommandRunning || _browserZoomReadPending ||
+            (!force && DateTimeOffset.UtcNow - _lastBrowserZoomRequest < TimeSpan.FromMilliseconds(400))) return;
+        _lastBrowserZoomRequest = DateTimeOffset.UtcNow;
+        _browserZoomReadPending = true;
+        var epoch = _browserZoomEpoch;
+        _ = ReadBrowserZoomAsync(record, epoch);
+    }
 
-        var updated = record with { ZoomSteps = next };
-        _placed = updated;
-        _ledger.Save(updated);
-        _zoomBook.Remember(record.ExecutablePath, record.AppName, next);
-        SaveSettings();
-        _zoomRail?.SetAppLevel(next);
-        ActivityStatus = $"{record.AppName} · 缩放 {next:+#;-#;0} 级";
-        return true;
+    private async Task ReadBrowserZoomAsync(WindowRestoreRecord record, int epoch)
+    {
+        try
+        {
+            var actual = await _browserZoomBridge.ReadAsync(record.Key, record.CapturedAt, record.ExecutablePath);
+            actual ??= await Task.Run(() => BrowserZoomReader.Read(record.Key));
+            if (epoch != _browserZoomEpoch || _zoomCommandRunning || _disposed ||
+                _showingPhoneList || _placed is not { } current ||
+                current.Key != record.Key || current.CapturedAt != record.CapturedAt) return;
+            _browserZoomObservation = actual;
+            _browserZoomReadAt = DateTimeOffset.UtcNow;
+            _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, actual);
+        }
+        catch (Exception)
+        {
+            // Accessibility providers can disconnect while a tab/window closes.
+            // Stale data expires naturally rather than guessing a percentage.
+        }
+        finally { _browserZoomReadPending = false; }
+    }
+
+    public async Task<bool> ApplyZoomGestureAsync(ZoomTarget target, int selectedValue, bool reset = false)
+    {
+        var applied = false;
+        await _actionLane.RunAsync(async () =>
+        {
+            if (!ZoomSessionMatches(target) || _placed is not { } record || _zoomCommandRunning) return;
+            _zoomCommandRunning = true;
+            var window = new WindowInfo(record.Key, record.AppName, string.Empty,
+                record.ExecutablePath, false, false);
+            try
+            {
+                if (target.IsBrowser)
+                {
+                    if (string.IsNullOrWhiteSpace(target.TabIdentity)) return;
+                    // Discard any read that was already in flight before this command.
+                    _browserZoomEpoch++;
+                    var relative = BrowserZoomLevels.StepsFromDefault(selectedValue);
+                    BrowserZoomObservation? confirmed = null;
+                    if (BridgeTabToken.TryParse(target.TabIdentity, out _))
+                    {
+                        confirmed = await _browserZoomBridge.ApplyAsync(target, selectedValue, reset);
+                        applied = confirmed is not null;
+                    }
+                    else
+                        applied = await Task.Run(() => _windowManager.ApplyBrowserRelativeZoom(
+                            window, target.TabIdentity, relative, reset));
+
+                    if (ZoomSessionMatches(target))
+                    {
+                        // Only a browser API reply for the bound tab is actual zoom evidence.
+                        // Sending a keyboard shortcut alone never establishes a percentage.
+                        _browserZoomObservation = confirmed;
+                        _browserZoomReadAt = confirmed is null ? default : DateTimeOffset.UtcNow;
+                        _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, confirmed);
+                        ActivityStatus = applied ? "已调整当前网页缩放" : "当前标签页或窗口已变化，或缩放连接不可用";
+                    }
+                }
+                else
+                {
+                    if (reset || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return;
+                    // This gesture is native to the active app/window/pane. Do not
+                    // remember it by executable or repay it against another pane.
+                    applied = await Task.Run(() => _windowManager.ApplyRelativeAppZoom(window, selectedValue));
+                    if (ZoomSessionMatches(target))
+                    {
+                        _zoomRail?.SetAppRelative(record.Key, record.CapturedAt);
+                        ActivityStatus = applied ? $"{record.AppName} · 已调整缩放" : "目标窗口已变化或未响应";
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                ActivityStatus = "缩放失败：" + error.Message;
+            }
+            finally
+            {
+                _zoomCommandRunning = false;
+                RefreshBrowserZoom(force: true);
+            }
+        });
+        return applied;
     }
 
     public void AdjustCurrentAppZoom(int delta)
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null) return;
-        SetCurrentAppZoomSteps(record.ZoomSteps + delta);
+        if (GetCurrentZoomTarget() is { } target)
+        {
+            var value = target.IsBrowser
+                ? BrowserZoomLevels.ClampIndex((target.BrowserPercent is int percent
+                    ? ZoomContext.TrackIndex(percent) : BrowserZoomLevels.DefaultIndex) + delta)
+                : delta;
+            _ = ApplyZoomGestureAsync(target, value);
+        }
     }
 
     private double TouchScale() => (double)Math.Max(1, _activeModeWidth)
@@ -2111,6 +2233,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _browserZoomBridge.Dispose();
         _screenshots.Changed -= SyncScreenshotOverlay;
         _screenshots.Dismiss();
         _screenshotPanel?.Close();
