@@ -1,5 +1,5 @@
 #define AppName "Snug for Windows"
-#define AppVersion "0.2.51"
+#define AppVersion "0.3.0"
 #define AppExeName "SnugLauncher.exe"
 
 [Setup]
@@ -38,6 +38,10 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "..\artifacts\package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\SnugZoomHost.exe"
+Type: filesandordirs; Name: "{app}\BrowserZoomExtension"
 
 [Icons]
 Name: "{autoprograms}\Snug\Snug"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\Snug.ico"

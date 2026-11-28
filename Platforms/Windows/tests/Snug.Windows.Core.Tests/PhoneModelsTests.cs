@@ -53,6 +53,49 @@ public sealed class PhoneModelsTests
     }
 
     [Fact]
+    public void AutomaticModelMatchingRequiresOneKnownPhoneAndExactSuffix()
+    {
+        var catalog = PhoneCatalog.FromJson(CatalogJson);
+        Assert.Equal("Apple iPhone 17 Pro Max", catalog.MatchControllerName("明明的 iPhone 17 Pro Max")?.Id);
+        Assert.Equal("华为 Mate 70 Pro", catalog.MatchControllerName("HUAWEI Mate 70 Pro")?.Id);
+        Assert.Null(catalog.MatchControllerName("iPhone 16 Pro"));
+        Assert.Null(catalog.MatchControllerName("iPhone"));
+        Assert.Null(catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Desktop)]));
+        Assert.Null(catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Phone), new("iPhone 17 Pro Max", ControllerKind.Phone)]));
+        Assert.Equal("Apple iPhone 16", catalog.MatchSinglePhoneController([new("iPhone 16", ControllerKind.Phone)])?.Id);
+    }
+
+    [Fact]
+    public void GenericPresetIdentitySurvivesRestartAndProducesCorrectRatio()
+    {
+        var catalog = PhoneCatalog.FromJson(CatalogJson);
+        foreach (var preset in PhoneCatalog.GenericPresets)
+        {
+            var restored = catalog.RestoreChoice(preset.Id, preset.Screen);
+            Assert.Equal(preset.Id, restored.Model);
+            Assert.Equal(preset.Screen, restored.Screen);
+            var mode = VddResolutionProfile.Create(restored, verticalInsetPoints: 0)[0];
+            Assert.InRange(Math.Abs((double)mode.Height / mode.Width - (double)preset.Screen.Height / preset.Screen.Width), 0, 0.003);
+        }
+        var old = new PhoneScreen(1600, 2560, 800);
+        Assert.Equal(new PhoneChoice(null, old), catalog.RestoreChoice("obsolete preset", old));
+        Assert.Equal(PhoneChoice.Standard, catalog.RestoreChoice("unknown", new PhoneScreen(0,0)));
+    }
+
+    [Fact]
+    public void GenericPresetsProduceSupportedPortraitFits()
+    {
+        Assert.Equal(5, PhoneCatalog.GenericPresets.Count);
+        foreach (var preset in PhoneCatalog.GenericPresets)
+        {
+            Assert.True(preset.Screen.IsValid);
+            var fit = new ScreenFit(preset.Screen, 0);
+            Assert.InRange(fit.BaseWidth, ScreenFit.MinWidth, ScreenFit.MaxWidth);
+            Assert.True(fit.PixelSizeFor(fit.BaseWidth).Height >= 1600);
+        }
+    }
+
+    [Fact]
     public void UpstreamPhoneModelAssetLoadsWithoutDataLoss()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", "phone-models.json");

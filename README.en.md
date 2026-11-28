@@ -26,6 +26,17 @@ Built for UU Remote · Dedicated portrait display · Native gestures · App Libr
 
 Snug for Windows is an independent community port of [Snug](https://github.com/zephyr4123/snug), maintained by [rizetngan](https://github.com/rizetngan). Based on Snug 2.5.0, it uses C# / .NET 10 / WPF. For macOS, visit the upstream project.
 
+## 0.3.0 candidate · CrossDesk + extension-free zoom
+
+One Snug phone workspace now supports UU Remote and CrossDesk. In CrossDesk mode, Windows runs the host and Android runs the controller; Snug manages the portrait workspace, windows and touch mapping.
+
+- Browser zoom no longer requires an extension, Native Messaging or a local relay
+- CrossDesk taps, swipes, long press and scrolling use the shared gesture core
+- Optional UU model matching and generic phone / tablet aspect presets
+
+![Snug 0.3.0 architecture](docs/0.3.0/media/architecture.svg)
+
+[Read the illustrated 0.3.0 guide](docs/0.3.0/README.en.md) · Candidate only: real CrossDesk mobile connection and UU regression are still in final acceptance; 0.2.51 remains the latest stable release.
 ## New in 0.2.48 · Built for your phone
 
 ![One-handed browser zoom](docs/0.2.48/media/side-zoom.svg)

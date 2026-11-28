@@ -82,8 +82,7 @@ public partial class PhoneSurfaceWindow : Window
     {
         _targetDisplay = display;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = 0;
-        Top = 0;
+        if (!IsLoaded) { Left = 0; Top = 0; }
         Width = display.Bounds.Width / display.DpiScaleX;
         Height = display.Bounds.Height / display.DpiScaleY;
         // Keep upstream's 540-point design grid on every phone. The old

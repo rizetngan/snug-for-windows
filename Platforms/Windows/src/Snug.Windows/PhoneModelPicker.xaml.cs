@@ -69,6 +69,13 @@ public partial class PhoneModelPicker : System.Windows.Controls.UserControl, INo
         var brands = _catalog.Search(query);
         var rows = new List<PhoneModelListRow>();
 
+        if (query.Length == 0)
+        {
+            rows.Add(new PhoneModelListRow(true, PhoneCatalog.GenericBrand, null, false));
+            foreach (var model in PhoneCatalog.GenericPresets)
+                rows.Add(new PhoneModelListRow(false, PhoneCatalog.GenericBrand, model,
+                    (string.Equals(_current.Model, model.Id, StringComparison.OrdinalIgnoreCase) || (_current.Model is null && _current.Screen == model.Screen))));
+        }
         foreach (var brand in brands)
         {
             rows.Add(new PhoneModelListRow(true, brand.Name, null, false));

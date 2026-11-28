@@ -26,20 +26,73 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private string _uuViewportMode = UuViewportPreset.Classic;
     private PhoneChoice CurrentDisplayChoice => _activeDisplayPhoneChoice ?? _phoneChoice;
     private int CurrentDisplayInsetPoints => _activeDisplayInsetPoints
-        ?? UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+        ?? (UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode));
     private int CurrentPreferredBaseWidth => _activeDisplayPreferredBaseWidth
         ?? PhoneBaseWidth.AtIndex(_baseWidthOption);
     private ScreenFit CurrentScreenFit => new(CurrentDisplayChoice.Screen,
         CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
     public ScreenFit PreviewScreenFit => new(_phoneChoice.Screen,
-        UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
+        UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode),
         PhoneBaseWidth.AtIndex(_baseWidthOption));
     private readonly UuSessionDetector _uuDetector = new();
+    private readonly CrossDeskSessionDetector _crossDeskDetector = new();
+    private readonly CrossDeskEpisode _crossDeskEpisode = new();
+    private RemoteMode _remoteMode;
+    private bool _crossDeskRestoreRunning;
+    private DateTimeOffset _lastCrossDeskRestoreAttempt;
+    private DateTimeOffset _lastCrossDeskPrepareAttempt;
+    private bool? _crossDeskPrivacyBlocksInput;
+    private bool UsesCrossDesk => _remoteMode == RemoteMode.CrossDesk;
+    private bool CanEnhanceRemoteInput => !UsesCrossDesk || _crossDeskPrivacyBlocksInput == false;
+    private bool CurrentRemoteConnected => UsesCrossDesk ? _crossDeskEpisode.IsConnected : _connection.IsConnected;
+
+    public string RemoteModeChoice
+    {
+        get => _remoteMode.ToString();
+        set
+        {
+            var next = RemoteModePolicy.Normalize(value);
+            if (next == _remoteMode) return;
+            // Never change provider ownership beneath a live display or a
+            // connected remote. Turning phone screen off releases it first.
+            if (_phoneDisplay is not null || _creatingSession || _endingSession ||
+                _connection.IsConnected || _crossDeskEpisode.IsConnected || _crossDeskRestoreRunning ||
+                HasPlacedWindow)
+            {
+                ActivityStatus = "请先断开远程并关闭手机屏，再切换远控软件";
+                _ = _timer.Dispatcher.BeginInvoke(new Action(() =>
+                    OnPropertyChanged(nameof(RemoteModeChoice))));
+                return;
+            }
+            _remoteMode = next;
+            _crossDeskEpisode.Reset();
+            _crossDeskPrivacyBlocksInput = null;
+            _displayHold.Reset();
+            _settings.RemoteMode = next.ToString();
+            SaveSettings();
+            OnPropertyChanged(nameof(RemoteModeChoice));
+            OnPropertyChanged(nameof(RemoteModeDescription));
+            OnPropertyChanged(nameof(PreviewScreenFit));
+            ConnectionStatus = UsesCrossDesk ? "等待 CrossDesk 启动" : "等待 UU 远程";
+            ActivityStatus = UsesCrossDesk ? "先准备手机屏，再启动 CrossDesk" : "已切换到 UU 远程";
+        }
+    }
+
+    public string RemoteModeDescription => UsesCrossDesk
+        ? "提前准备手机屏；断开后归还窗口"
+        : "连接 UU 后自动创建";
     private readonly UuConnectionTracker _connection = new();
     private readonly MouseGestureHook _gestureHook = new();
     private readonly PhoneDisplayHold _displayHold = new();
-    private int _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
-    private bool _browserZoomKnown;
+    private BrowserZoomObservation? _browserZoomObservation;
+    private WindowKey? _browserZoomWindow;
+    private DateTimeOffset _browserZoomSession;
+    private DateTimeOffset _browserZoomReadAt;
+    private DateTimeOffset _lastBrowserZoomRequest;
+    private bool _browserZoomReadPending;
+    private bool _zoomCommandRunning;
+    private int _browserZoomEpoch;
+    private static readonly TimeSpan BrowserZoomFreshness = TimeSpan.FromMilliseconds(1600);
     private readonly Screenshots _screenshots = new(new WindowScreenshotService());
     private ScreenshotPanelWindow? _screenshotPanel;
     private readonly VddDriverClient _driver = new();
@@ -77,6 +130,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private bool _previewOpen;
     private bool _showingPhoneList = true;
     private bool _pullingWindow;
+    private bool _geometryReconcilePending;
+    private bool _startupRecoveryPending;
+    private bool _startupRecoveryRunning;
+    private DateTimeOffset _lastStartupRecoveryAttempt;
     private WindowKey? _askingDialogKey;
     private bool _recoveringDialog;
     private bool _recoveringLostWindow;
@@ -104,6 +161,18 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public PhoneCatalog PhoneCatalog => _phoneCatalog;
     public PhoneChoice CurrentPhoneChoice => _phoneChoice;
     public string PhoneChoiceSummary => _phoneChoice.Title + "  ·  " + _phoneChoice.Screen.SizeText;
+    public bool AutoMatchPhoneModel
+    {
+        get => _settings.AutoMatchPhoneModel;
+        set
+        {
+            if (_settings.AutoMatchPhoneModel == value) return;
+            _settings.AutoMatchPhoneModel = value;
+            SaveSettings();
+            OnPropertyChanged();
+            ActivityStatus = "机型自动匹配将在下次 UU 会话生效";
+        }
+    }
     public string UuViewportMode
     {
         get => _uuViewportMode;
@@ -282,21 +351,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public AppController()
     {
         _settings = _settingsStore.Load();
+        _remoteMode = RemoteModePolicy.Normalize(_settings.RemoteMode);
         _phoneCatalog = LoadPhoneCatalog();
         var savedScreen = new PhoneScreen(_settings.PhoneScreenWidth, _settings.PhoneScreenHeight,
             _settings.PhoneScreenPoints);
-        if (savedScreen.IsValid && string.IsNullOrWhiteSpace(_settings.PhoneModel))
-        {
-            _phoneChoice = new PhoneChoice(null, savedScreen);
-        }
-        else if (_phoneCatalog.Find(_settings.PhoneModel) is { } savedModel)
-        {
-            _phoneChoice = new PhoneChoice(savedModel.Id, savedModel.Screen);
-        }
-        else
-        {
-            _phoneChoice = PhoneChoice.Standard;
-        }
+        _phoneChoice = _phoneCatalog.RestoreChoice(_settings.PhoneModel, savedScreen);
         _uuViewportMode = UuViewportPreset.Normalize(_settings.UuViewportMode);
         _baseWidthOption = PhoneBaseWidth.IndexOf(_settings.PhoneBaseWidth);
         _activeModeWidth = CurrentScreenFit.BaseWidth;
@@ -361,6 +420,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     public void StartCatalogPreview()
     {
+        ConnectionStatus = UsesCrossDesk ? "等待 CrossDesk 启动" : "等待 UU 远程";
         RefreshWindows();
         _ = LoadInstalledAppsAsync();
     }
@@ -368,8 +428,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     public void Start()
     {
         _startedAt = DateTimeOffset.UtcNow;
-        RecoverInterruptedMove();
         Refresh();
+        _startupRecoveryPending = _ledger.Load() is not null;
         _ = LoadInstalledAppsAsync();
         _timer.Start();
         _ = RefreshDriverStatusAsync();
@@ -397,6 +457,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         foreach (var display in _displayEnumerator.GetDisplays()) Displays.Add(display);
         _availableSnugDisplay = _displayEnumerator.FindSnugDisplay();
 
+        if (!_disposed && !_creatingSession && !_endingSession && !_pullingWindow &&
+            !_recoveringDialog && !_recoveringLostWindow && !_geometryReconcilePending &&
+            _askingDialogKey is null && !_screenshots.IsCropping && _modeGate.CurrentCount == 1 &&
+            _phoneDisplay is { } old && _availableSnugDisplay is { } fresh &&
+            NeedsPhoneReconciliation(old, fresh))
+        {
+            _geometryReconcilePending = true;
+            _ = _actionLane.RunAsync(async () =>
+            {
+                try { await ReconcilePhoneGeometryAsync(); }
+                finally { _geometryReconcilePending = false; }
+            });
+        }
+
         if (_phoneDisplay is not null)
             DisplayStatus = $"Snug 手机屏 · {_phoneDisplay.Bounds.Width} × {_phoneDisplay.Bounds.Height}";
         else if (_availableSnugDisplay is not null)
@@ -409,6 +483,70 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             DisplayStatus = _driver.IsInstalled ? "检测到外部虚拟显示驱动" : "虚拟显示驱动未安装";
 
         OnPropertyChanged(nameof(Displays));
+    }
+
+    private bool NeedsPhoneReconciliation(DisplayInfo old, DisplayInfo fresh)
+    {
+        if (PhoneLayoutValidation.GeometryChanged(old, fresh)) return true;
+        if (_showingPhoneList || _placed is not { } placed ||
+            Snug.Windows.Interop.NativeMethods.IsIconic(new IntPtr(placed.Key.Handle)) ||
+            !_windowManager.IsResponsive(placed.Key)) return false;
+        return _windowManager.ReadBounds(placed.Key) is { } actual &&
+            !PhoneLayoutValidation.Fits(actual, CurrentAppArea(fresh));
+    }
+
+    private async Task ReconcilePhoneGeometryAsync()
+    {
+        if (_disposed || _phoneDisplay is not { } old || _creatingSession || _endingSession ||
+            _pullingWindow || _recoveringDialog || _recoveringLostWindow ||
+            _askingDialogKey is not null || _screenshots.IsCropping || _modeGate.CurrentCount != 1) return;
+        var fresh = _displayEnumerator.FindSnugDisplay();
+        if (fresh is null || !NeedsPhoneReconciliation(old, fresh)) return;
+        try
+        {
+            // Prefer a valid native mode already selected by Windows/UU.
+            // Do not fight the remote client by forcing the old larger mode.
+            var actualWidth = PhoneLayoutValidation.MatchingWidth(CurrentScreenFit, fresh.Bounds);
+            if (actualWidth is { } width &&
+                _modeSwitcher.HasMode(fresh, new VddResolutionMode(fresh.Bounds.Width, fresh.Bounds.Height, 60)))
+            {
+                _activeModeWidth = width;
+                ApplyPhoneGeometry(fresh);
+            }
+            else if (!await ChangePhoneModeAsync(_activeModeWidth))
+            {
+                // Do not leave the app and bars on stale geometry after a failed mode switch.
+                if (_disposed || _endingSession) return;
+                if (_displayEnumerator.FindSnugDisplay() is { } actualDisplay)
+                {
+                    ApplyPhoneGeometry(actualDisplay);
+                    await PutBackCoreAsync();
+                    ShowPhoneList(restoreListMode: false);
+                }
+                return;
+            }
+            if (_phoneDisplay is not { } display || _disposed || _endingSession) return;
+            if (_placed is { } placed && !_showingPhoneList)
+            {
+                var area = CurrentAppArea(display);
+                if (!_windowManager.MoveTo(placed.Key, area) ||
+                    _windowManager.ReadBounds(placed.Key) is not { } actual ||
+                    !PhoneLayoutValidation.Fits(actual, area))
+                {
+                    await PutBackCoreAsync();
+                    ShowPhoneList(restoreListMode: false);
+                    return;
+                }
+                _placed = placed with { FilledBounds = actual };
+                _ledger.Save(_placed);
+                _placedModeWidth = _activeModeWidth;
+                ShowHomeBar(display);
+            }
+        }
+        catch (Exception error)
+        {
+            ActivityStatus = error.Message;
+        }
     }
 
     public void RefreshWindows()
@@ -596,7 +734,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             {
                 // A queued gesture must not apply to a replaced window or
                 // to a caption that moved after the user lifted their finger.
-                if (_disposed || !_connection.IsConnected || _phoneSurface?.IsVisible == true ||
+                if (_disposed || !CurrentRemoteConnected || _phoneSurface?.IsVisible == true ||
                     _placed is not { } placed || placed.Key != hit.Key ||
                     !NativeCloseHitTest.Revalidate(hit)) return;
                 var window = Windows.FirstOrDefault(w => w.Key == hit.Key) ??
@@ -980,7 +1118,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
     private async Task<bool> ChangePhoneModeAsync(int width)
     {
         var fit = CurrentScreenFit;
-        if (!fit.Widths.Contains(width) || _phoneDisplay is null) return false;
+        if (!fit.Widths.Contains(width) || _phoneDisplay is null || _disposed || _endingSession) return false;
         // Windows signed VDD has a validated 20-point mode grid. Round up
         // rather than requesting one of the unsupported intermediate widths.
         width = VddResolutionProfile.SnapWidth(CurrentDisplayChoice, width,
@@ -990,9 +1128,8 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         await _modeGate.WaitAsync();
         try
         {
-            var display = _phoneDisplay;
-            if (display is null) return false;
-            var previousGeometry = display.Bounds;
+            var display = _displayEnumerator.FindSnugDisplay();
+            if (display is null || _phoneDisplay is null || _disposed || _endingSession) return false;
             var changingMode = !_modeSwitcher.HasMode(display, mode);
             // WinForms screen bounds are DPI-virtualized (720x1223 on this
             // user's 1080x1834 VDD). Always compare/set the raw Win32 mode.
@@ -1019,35 +1156,26 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             // were reused on a new 820x1392 display. That left the browser and
             // HomeBar covering only part of the actual virtual screen.
             DisplayInfo? found = null;
-            var geometrySettled = !changingMode;
+            var geometrySettled = false;
             for (var attempt = 0; attempt < 40; attempt++)
             {
+                if (_disposed || _endingSession) return false;
                 found = _displayEnumerator.FindSnugDisplay();
-                if (found is not null && _modeSwitcher.HasMode(found, mode))
+                if (found is not null && _modeSwitcher.HasMode(found, mode) &&
+                    PhoneLayoutValidation.MatchesMode(found.Bounds, mode.Width, mode.Height))
                 {
-                    geometrySettled = !changingMode
-                        || found.Bounds.Width != previousGeometry.Width
-                        || found.Bounds.Height != previousGeometry.Height;
-                    if (geometrySettled) break;
+                    geometrySettled = true;
+                    break;
                 }
                 await Task.Delay(150);
             }
-            if (found is null || !_modeSwitcher.HasMode(found, mode) || !geometrySettled)
+            if (found is null || !geometrySettled)
             {
                 ActivityStatus = "Windows 尚未确认 Snug 手机屏的新分辨率。";
                 return false;
             }
-            _phoneDisplay = found;
-            _availableSnugDisplay = found;
             _activeModeWidth = width;
-            _phoneSurface?.PlaceOn(found);
-            _notchGuard?.PlaceOn(found);
-            _homeBar?.PlaceOn(found);
-            _zoomRail?.PlaceOn(found);
-            _appBackBar?.PlaceOn(found);
-            _screenshotPanel?.PlaceOn(found);
-            _gestureHook.SetRegion(found, TouchScale());
-            SyncGestures();
+            ApplyPhoneGeometry(found);
             RefreshDisplays();
             return true;
         }
@@ -1057,6 +1185,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return false;
         }
         finally { _modeGate.Release(); }
+    }
+
+    private void ApplyPhoneGeometry(DisplayInfo display)
+    {
+        _phoneDisplay = display;
+        _availableSnugDisplay = display;
+        _phoneSurface?.PlaceOn(display);
+        _notchGuard?.PlaceOn(display);
+        _homeBar?.PlaceOn(display);
+        _zoomRail?.PlaceOn(display);
+        _appBackBar?.PlaceOn(display);
+        _screenshotPanel?.PlaceOn(display);
+        _gestureHook.SetRegion(display, TouchScale(), UsesCrossDesk);
+        SyncGestures();
     }
 
     private async Task<bool> FitMovedWindowAsync(WindowInfo window)
@@ -1078,7 +1220,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 new PhoneSize(area.Width, area.Height), _activeModeWidth);
             if (needed <= _activeModeWidth)
             {
-                if (actual.Value.Width > area.Width + 2 || actual.Value.Height > area.Height + 2)
+                if (!PhoneLayoutValidation.Fits(actual.Value, area))
                 {
                     ActivityStatus = "应用的最小窗口尺寸超过手机屏最大档位，无法完整显示。";
                     return false;
@@ -1096,7 +1238,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
                 return false;
             }
         }
-        return true;
+        if (_phoneDisplay is not { } finalDisplay ||
+            _windowManager.ReadBounds(window.Key) is not { } finalBounds)
+            return false;
+        var finalArea = CurrentAppArea(finalDisplay);
+        return PhoneLayoutValidation.Fits(finalBounds, finalArea);
     }
 
     private async Task RestoreListModeAsync()
@@ -1110,11 +1256,17 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_phoneDisplay is null || !_windowManager.IsResponsive(placed.Key)) return;
         if (!await ChangePhoneModeAsync(_placedModeWidth)) return;
         if (_phoneDisplay is not { } display ||
-            !_windowManager.MoveTo(placed.Key, CurrentAppArea(display)))
+            !_windowManager.MoveTo(placed.Key, CurrentAppArea(display)) ||
+            _windowManager.ReadBounds(placed.Key) is not { } actual ||
+            !PhoneLayoutValidation.Fits(actual, CurrentAppArea(display)))
         {
-            ActivityStatus = "无法在当前手机分辨率下重新铺放 App。";
+            await PutBackCoreAsync();
+            ShowPhoneList();
+            ActivityStatus = "无法在当前手机分辨率下重新铺放 App，已尝试还原。";
             return;
         }
+        _placed = placed with { FilledBounds = actual };
+        _ledger.Save(_placed);
         _showingPhoneList = false;
         _phoneSurface?.Hide();
         SyncGestures();
@@ -1141,6 +1293,11 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             ActivityStatus = "没有可用的 Snug 手机屏";
             return;
         }
+        if (UsesCrossDesk && (!_crossDeskEpisode.IsConnected || _crossDeskRestoreRunning))
+        {
+            ActivityStatus = "请先连接 CrossDesk 手机屏";
+            return;
+        }
         if (_pullingWindow) return;
         _pullingWindow = true;
 
@@ -1164,8 +1321,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
             var display = _phoneDisplay!;
             var canZoom = ZoomBook.IsZoomable(window.ExecutablePath, window.AppName);
-            var zoomSteps = canZoom
-                ? _zoomBook.StepsFor(window.ExecutablePath, window.AppName, DefaultZoomSteps)
+            // The global default is an explicit temporary phone-zoom setting.
+            // A different window's last manual gesture must never be inherited.
+            var zoomSteps = canZoom && CanEnhanceRemoteInput
+                ? ZoomContext.InitialTemporarySteps(window.ExecutablePath, DefaultZoomSteps)
                 : 0;
 
             var record = await Task.Run(() =>
@@ -1201,8 +1360,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             });
 
             _placed = record;
-            _browserZoomIndex = BrowserZoomLevels.DefaultIndex;
-            _browserZoomKnown = false;
+            InvalidateBrowserZoom();
             if (!await FitMovedWindowAsync(window))
             {
                 await PutBackAsync();
@@ -1228,11 +1386,6 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _placedModeWidth = _activeModeWidth;
             _showingPhoneList = false;
 
-            if (canZoom)
-            {
-                _zoomBook.Remember(window.ExecutablePath, window.AppName, zoomSteps);
-                SaveSettings();
-            }
 
             _phoneSurface?.Hide();
             SyncGestures();
@@ -1321,7 +1474,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
-        _browserZoomKnown = false;
+        InvalidateBrowserZoom();
         _appBackBar?.Hide();
         if (result.Restored) _placedModeWidth = CurrentScreenFit.BaseWidth;
         if (_phoneSurface is { IsVisible: false } && _phoneDisplay is not null) _phoneSurface.Show();
@@ -1345,6 +1498,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _notchGuard?.Hide();
         _homeBar?.Hide();
         _zoomRail?.Hide();
+        InvalidateBrowserZoom();
         _appBackBar?.Hide();
         if (_phoneSurface is { } surface && _phoneDisplay is { } display)
         {
@@ -1384,6 +1538,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         // the VDD mode settles. Keep upstream's HomeBar visible without taking
         // keyboard focus; the method is a no-op unless that taskbar overlaps it.
         _homeBar?.EnsureAboveTaskbar();
+        RefreshBrowserZoom();
 
         if (_askingDialogKey is { } asking
             && !_recoveringDialog && !_windowManager.IsAlive(asking))
@@ -1394,17 +1549,29 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         var now = DateTimeOffset.UtcNow;
         var signals = _uuDetector.Sample();
-        ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary;
+        var crossDesk = _crossDeskDetector.Sample(_phoneDisplay?.DeviceName);
+        var privacyChanged = _crossDeskPrivacyBlocksInput != crossDesk.PrivacyBlocksInput;
+        _crossDeskPrivacyBlocksInput = crossDesk.PrivacyBlocksInput;
+        ConnectionDiagnostics = _uuDetector.LastSignalSummary + " · " + _uuDetector.LocalControllerSummary
+            + Environment.NewLine + crossDesk.Summary;
         var transitions = _connection.Update(signals, now);
+        var previousCrossDeskConnection = _crossDeskEpisode.IsConnected;
+        _crossDeskEpisode.Update(crossDesk.Presence, now);
         var wantsPhoneScreen = _connection.WantsPhoneScreen(now);
-        var keepPhoneDisplay = _displayHold.ShouldKeep(
+        var keepPhoneDisplay = UsesCrossDesk
+            ? RemoteModePolicy.KeepPreparedScreen(_remoteMode, PhoneScreenEnabled)
+            : _displayHold.ShouldKeep(
             wantsPhoneScreen || (_connection.IsConnected && _phoneDisplay is not null),
             PhoneScreenEnabled, _phoneDisplay is not null, now);
-        if (transitions.Count > 0 && _phoneDisplay is not null) SyncGestures();
+        if ((transitions.Count > 0 || previousCrossDeskConnection != _crossDeskEpisode.IsConnected || (UsesCrossDesk && privacyChanged))
+            && _phoneDisplay is not null) SyncGestures();
         if (transitions.Count > 0 || now - _lastAcceptanceAuditAt >= TimeSpan.FromSeconds(1))
         {
             UuCaptureAcceptanceAudit.Record("SessionState", new
             {
+                crossDeskPresence = crossDesk.Presence.ToString(),
+                crossDeskShouldRestore = _crossDeskEpisode.ShouldRestore,
+                overlayVisible = signals.OverlayVisible,
                 captureActive = signals.CaptureActive,
                 captureVerifiedInactive = signals.CaptureVerifiedInactive,
                 captureVerifiedActive = signals.CaptureVerifiedActive,
@@ -1428,7 +1595,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _lastAcceptanceAuditAt = now;
         }
 
-        IsConnected = _connection.IsConnected;
+        IsConnected = CurrentRemoteConnected;
         ConnectionStatus = !IsConnected ? "等待 UU 远程" : signals.Evidence switch
         {
             UuEvidenceKind.ControllerTable => "UU 已连接 · " +
@@ -1442,6 +1609,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_displayHold.IsPaused && keepPhoneDisplay)
             ConnectionStatus = "UU 已暂停 · 手机屏保留";
 
+        if (UsesCrossDesk)
+        {
+            ConnectionStatus = _crossDeskEpisode.IsConnected ? "CrossDesk 已连接"
+                : crossDesk.HostRunning ? "等待 CrossDesk 连接" : "等待 CrossDesk 启动";
+            if (privacyChanged && _phoneDisplay is { } privacyDisplay && !_showingPhoneList && HasPlacedWindow)
+                ShowHomeBar(privacyDisplay);
+            if (_crossDeskEpisode.IsConnected && !CanEnhanceRemoteInput)
+                ConnectionStatus += _crossDeskPrivacyBlocksInput == true ? " · 隐私屏：原生操作" : " · 隐私状态待确认";
+            if (crossDesk.DisplayReachable == false && _phoneDisplay is not null)
+                ConnectionStatus += " · 需重新识别手机屏";
+            else if (_phoneDisplay is not null && !crossDesk.HostRunning)
+                ConnectionStatus = "手机屏已准备 · 启动 CrossDesk";
+        }
+
         if (now - _lastDisplayScan > TimeSpan.FromSeconds(2))
         {
             _lastDisplayScan = now;
@@ -1454,7 +1635,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             CheckLeftBehindReturns(now);
         }
 
-        if (!_recoveringLostWindow && !_pullingWindow && !_recoveringDialog
+        if (!_startupRecoveryPending && !_recoveringLostWindow && !_pullingWindow && !_recoveringDialog
             && _placed is { } current && !_windowManager.IsAlive(current.Key))
         {
             _recoveringLostWindow = true;
@@ -1466,9 +1647,46 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             _ = RefreshDriverStatusAsync();
         }
 
+        if (_startupRecoveryPending)
+        {
+            if (!_startupRecoveryRunning && now - _lastStartupRecoveryAttempt >= TimeSpan.FromSeconds(5))
+            {
+                _lastStartupRecoveryAttempt = now;
+                _startupRecoveryRunning = true;
+                _ = _actionLane.RunAsync(async () =>
+                {
+                    try
+                    {
+                        await PutBackCoreAsync();
+                        _startupRecoveryPending = HasPlacedWindow;
+                    }
+                    catch (Exception error)
+                    {
+                        ActivityStatus = "窗口恢复失败：" + error.Message;
+                    }
+                    finally { _startupRecoveryRunning = false; }
+                });
+            }
+            return;
+        }
+
+        // The selected provider owns the placed window. Returning that window does not release the display or end UU.
+        if (UsesCrossDesk && _crossDeskEpisode.ShouldRestore && !_crossDeskRestoreRunning &&
+            !_pullingWindow && !_creatingSession && !_endingSession &&
+            now - _lastCrossDeskRestoreAttempt >= TimeSpan.FromSeconds(3))
+        {
+            _lastCrossDeskRestoreAttempt = now;
+            _ = RestoreCrossDeskWindowAsync();
+        }
+
         if (keepPhoneDisplay)
         {
-            if (_phoneDisplay is null && !_creatingSession && !_endingSession) _ = StartPhoneSessionAsync();
+            if (_phoneDisplay is null && !_creatingSession && !_endingSession &&
+                (!UsesCrossDesk || now - _lastCrossDeskPrepareAttempt >= TimeSpan.FromSeconds(10)))
+            {
+                _lastCrossDeskPrepareAttempt = now;
+                _ = StartPhoneSessionAsync();
+            }
         }
         else if (_phoneDisplay is not null && !_previewOpen && !_endingSession && !_creatingSession)
         {
@@ -1526,9 +1744,32 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         }
     }
 
+    private async Task RestoreCrossDeskWindowAsync()
+    {
+        _crossDeskRestoreRunning = true;
+        try
+        {
+            await _actionLane.RunAsync(async () =>
+            {
+                if (!UsesCrossDesk || !_crossDeskEpisode.ShouldRestore || _endingSession) return;
+                await PutBackCoreAsync();
+                if (!HasPlacedWindow)
+                {
+                    _crossDeskEpisode.MarkRestored();
+                    if (_phoneDisplay is not null) ShowPhoneList(restoreListMode: false);
+                }
+            });
+        }
+        catch (Exception error)
+        {
+            ActivityStatus = "CrossDesk 窗口恢复失败：" + error.Message;
+        }
+        finally { _crossDeskRestoreRunning = false; }
+    }
+
     private async Task StartPhoneSessionAsync()
     {
-        if (_creatingSession || _endingSession || _disposed) return;
+        if (_creatingSession || _endingSession || _disposed || _startupRecoveryPending) return;
         _creatingSession = true;
         UuCaptureAcceptanceAudit.Record("StartPhoneSession", new { stage = "begin", driverManaged = _driver.IsManagedBySnug });
         _orphanCleanupStarted = false;
@@ -1549,8 +1790,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             if (!_driver.IsInstallComplete)
                 throw new InvalidOperationException("虚拟显示驱动安装未完成，请在设置中修复驱动。");
             _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
-            _activeDisplayPhoneChoice = _phoneChoice;
-            _activeDisplayInsetPoints = UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
+            var detected = !UsesCrossDesk && AutoMatchPhoneModel
+                ? _phoneCatalog.MatchSinglePhoneController(_connection.Controllers) : null;
+            _activeDisplayPhoneChoice = detected is null ? _phoneChoice : new PhoneChoice(detected.Id, detected.Screen);
+            _activeDisplayInsetPoints = UsesCrossDesk ? 0 : UuViewportPreset.VerticalInsetPoints(_uuViewportMode);
             _activeDisplayPreferredBaseWidth = PhoneBaseWidth.AtIndex(_baseWidthOption);
             _driver.WritePhoneProfile(_activeDisplayPhoneChoice,
                 CurrentDisplayInsetPoints, CurrentPreferredBaseWidth);
@@ -1620,7 +1863,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _activeModeWidth = CurrentScreenFit.BaseWidth;
         _placedModeWidth = _activeModeWidth;
         _showingPhoneList = true;
-        _gestureHook.SetRegion(display, TouchScale());
+        _gestureHook.SetRegion(display, TouchScale(), UsesCrossDesk);
         SyncGestures();
     }
 
@@ -1652,7 +1895,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             record.ExecutablePath, record.AppName);
         var isAppZoomable = ZoomBook.IsZoomable(
             record.ExecutablePath, record.AppName);
-        if (!isBrowser && !isAppZoomable)
+        if (!CanEnhanceRemoteInput || (!isBrowser && !isAppZoomable))
         {
             _zoomRail?.Hide();
             return;
@@ -1660,13 +1903,20 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
         _zoomRail ??= new ZoomRailWindow(this);
         if (isBrowser)
-            _zoomRail.SetBrowserLevel(_browserZoomKnown ? _browserZoomIndex : null);
+        {
+            EnsureBrowserZoomContext(record);
+            _zoomRail.SetBrowserState(record.Key, record.CapturedAt, CurrentBrowserObservation(record));
+        }
         else
-            _zoomRail.SetAppLevel(record.ZoomSteps);
+        {
+            InvalidateBrowserZoom();
+            _zoomRail.SetAppRelative(record.Key, record.CapturedAt);
+        }
 
         _zoomRail.PlaceOn(display);
         _zoomRail.Show();
         _zoomRail.PlaceOn(display);
+        if (isBrowser) RefreshBrowserZoom(force: true);
     }
 
     private void ShowAppBackBar(DisplayInfo display, string appName, bool canZoom, int zoomSteps)
@@ -1677,63 +1927,152 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         _appBackBar.Show();
     }
 
-    public bool SetCurrentBrowserZoomIndex(int index)
+    private void InvalidateBrowserZoom()
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null || _phoneDisplay is null || _showingPhoneList
-            || !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return false;
-        index = BrowserZoomLevels.ClampIndex(index);
-        var browser = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (!_windowManager.ApplyBrowserZoom(browser, index))
-        {
-            ActivityStatus = "浏览器未响应缩放操作";
-            return false;
-        }
-        _browserZoomIndex = index;
-        _browserZoomKnown = true;
-        _zoomRail?.SetBrowserLevel(index);
-        ActivityStatus = $"网页缩放 {BrowserZoomLevels.PercentAt(index)}%";
-        return true;
+        _browserZoomEpoch++;
+        _browserZoomObservation = null;
+        _browserZoomWindow = null;
+        _browserZoomSession = default;
+        _browserZoomReadAt = default;
     }
 
-    public bool SetCurrentAppZoomSteps(int steps)
+    private void EnsureBrowserZoomContext(WindowRestoreRecord record)
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null || _phoneDisplay is null || _showingPhoneList
-            || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return false;
+        if (_browserZoomWindow == record.Key && _browserZoomSession == record.CapturedAt) return;
+        InvalidateBrowserZoom();
+        _browserZoomWindow = record.Key;
+        _browserZoomSession = record.CapturedAt;
+    }
 
-        var next = Math.Clamp(steps, ZoomBook.MinimumSteps, ZoomBook.MaximumSteps);
-        var delta = next - record.ZoomSteps;
-        if (delta == 0)
+    private BrowserZoomObservation? CurrentBrowserObservation(WindowRestoreRecord record) =>
+        _browserZoomWindow == record.Key && _browserZoomSession == record.CapturedAt &&
+        DateTimeOffset.UtcNow - _browserZoomReadAt <= BrowserZoomFreshness
+            ? _browserZoomObservation : null;
+
+    private bool ZoomSessionMatches(ZoomTarget target) =>
+        CanEnhanceRemoteInput && !_disposed && !_endingSession && !_creatingSession && !_pullingWindow &&
+        !_showingPhoneList && _phoneDisplay is not null && _placed is { } record &&
+        record.Key == target.Window && record.CapturedAt == target.Session &&
+        BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName) == target.IsBrowser;
+
+    public ZoomTarget? GetCurrentZoomTarget()
+    {
+        if (!CanEnhanceRemoteInput || _disposed || _endingSession || _creatingSession || _pullingWindow ||
+            _showingPhoneList || _phoneDisplay is null || _placed is not { } record) return null;
+        if (BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName))
         {
-            _zoomRail?.SetAppLevel(next);
-            return true;
+            var actual = CurrentBrowserObservation(record);
+            return actual is null ? null : new(record.Key, record.CapturedAt, actual.TabIdentity, true);
         }
+        return ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)
+            ? new(record.Key, record.CapturedAt, null, false) : null;
+    }
 
-        var window = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (!_windowManager.Zoom(window, delta))
+    public void RefreshBrowserZoom(bool force = false)
+    {
+        if (!CanEnhanceRemoteInput || _disposed || _endingSession || _creatingSession || _pullingWindow ||
+            _showingPhoneList || _phoneDisplay is null || _zoomRail?.IsVisible != true ||
+            _placed is not { } record ||
+            !BrowserZoomLevels.IsBrowser(record.ExecutablePath, record.AppName)) return;
+
+        EnsureBrowserZoomContext(record);
+        if (_browserZoomObservation is not null && CurrentBrowserObservation(record) is null)
         {
-            ActivityStatus = "应用未响应缩放操作，窗口保持原状";
-            return false;
+            _browserZoomObservation = null;
+            _zoomRail.SetBrowserState(record.Key, record.CapturedAt, null);
         }
+        if (_zoomCommandRunning || _browserZoomReadPending ||
+            (!force && DateTimeOffset.UtcNow - _lastBrowserZoomRequest < TimeSpan.FromMilliseconds(400))) return;
+        _lastBrowserZoomRequest = DateTimeOffset.UtcNow;
+        _browserZoomReadPending = true;
+        var epoch = _browserZoomEpoch;
+        _ = ReadBrowserZoomAsync(record, epoch);
+    }
 
-        var updated = record with { ZoomSteps = next };
-        _placed = updated;
-        _ledger.Save(updated);
-        _zoomBook.Remember(record.ExecutablePath, record.AppName, next);
-        SaveSettings();
-        _zoomRail?.SetAppLevel(next);
-        ActivityStatus = $"{record.AppName} · 缩放 {next:+#;-#;0} 级";
-        return true;
+    private async Task ReadBrowserZoomAsync(WindowRestoreRecord record, int epoch)
+    {
+        try
+        {
+            var actual = await Task.Run(() => BrowserZoomReader.Read(record.Key));
+            if (epoch != _browserZoomEpoch || _zoomCommandRunning || _disposed ||
+                _showingPhoneList || _placed is not { } current ||
+                current.Key != record.Key || current.CapturedAt != record.CapturedAt) return;
+            _browserZoomObservation = actual;
+            _browserZoomReadAt = DateTimeOffset.UtcNow;
+            _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, actual);
+        }
+        catch (Exception)
+        {
+            // Accessibility providers can disconnect while a tab/window closes.
+            // Stale data expires naturally rather than guessing a percentage.
+        }
+        finally { _browserZoomReadPending = false; }
+    }
+
+    public async Task<bool> ApplyZoomGestureAsync(ZoomTarget target, int selectedValue, bool reset = false)
+    {
+        var applied = false;
+        await _actionLane.RunAsync(async () =>
+        {
+            if (!ZoomSessionMatches(target) || _placed is not { } record || _zoomCommandRunning) return;
+            _zoomCommandRunning = true;
+            var window = new WindowInfo(record.Key, record.AppName, string.Empty,
+                record.ExecutablePath, false, false);
+            try
+            {
+                if (target.IsBrowser)
+                {
+                    if (string.IsNullOrWhiteSpace(target.TabIdentity)) return;
+                    // Discard any read that was already in flight before this command.
+                    _browserZoomEpoch++;
+                    var relative = BrowserZoomLevels.StepsFromDefault(selectedValue);
+                    applied = await Task.Run(() => _windowManager.ApplyBrowserRelativeZoom(window, target.TabIdentity, relative, reset));
+
+                    if (ZoomSessionMatches(target))
+                    {
+                        // Native input never establishes an absolute percentage.
+                        // Drop the previous observation until the selected tab is read again.
+                        _browserZoomObservation = null;
+                        _browserZoomReadAt = default;
+                        _zoomRail?.SetBrowserState(record.Key, record.CapturedAt, null);
+                        ActivityStatus = applied ? "已调整当前网页缩放" : "当前标签页或窗口已变化，未执行完整缩放";
+                    }
+                }
+                else
+                {
+                    if (reset || !ZoomBook.IsZoomable(record.ExecutablePath, record.AppName)) return;
+                    // This gesture is native to the active app/window/pane. Do not
+                    // remember it by executable or repay it against another pane.
+                    applied = await Task.Run(() => _windowManager.ApplyRelativeAppZoom(window, selectedValue));
+                    if (ZoomSessionMatches(target))
+                    {
+                        _zoomRail?.SetAppRelative(record.Key, record.CapturedAt);
+                        ActivityStatus = applied ? $"{record.AppName} · 已调整缩放" : "目标窗口已变化或未响应";
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                ActivityStatus = "缩放失败：" + error.Message;
+            }
+            finally
+            {
+                _zoomCommandRunning = false;
+                RefreshBrowserZoom(force: true);
+            }
+        });
+        return applied;
     }
 
     public void AdjustCurrentAppZoom(int delta)
     {
-        var record = _placed ?? _ledger.Load();
-        if (record is null) return;
-        SetCurrentAppZoomSteps(record.ZoomSteps + delta);
+        if (GetCurrentZoomTarget() is { } target)
+        {
+            var value = target.IsBrowser
+                ? BrowserZoomLevels.ClampIndex(BrowserZoomLevels.DefaultIndex + delta)
+                : delta;
+            _ = ApplyZoomGestureAsync(target, value);
+        }
     }
 
     private double TouchScale() => (double)Math.Max(1, _activeModeWidth)
@@ -1741,7 +2080,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
 
     private void SyncGestures()
     {
-        if (!GesturesEnabled || _phoneDisplay is null || !_connection.IsConnected
+        if (!CanEnhanceRemoteInput || !GesturesEnabled || _phoneDisplay is null || !CurrentRemoteConnected
             || _phoneSurface?.IsVisible == true || _screenshots.IsCropping)
         {
             _gestureHook.Stop();
@@ -1749,7 +2088,7 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        _gestureHook.SetRegion(_phoneDisplay, TouchScale());
+        _gestureHook.SetRegion(_phoneDisplay, TouchScale(), UsesCrossDesk);
         if (!_gestureHook.IsRunning && !_gestureHook.Start())
             ActivityStatus = "手势监听启动失败";
     }
@@ -1759,47 +2098,53 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
         if (_endingSession) return;
         _displayHold.Reset();
         _endingSession = true;
-        UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "begin", connected = _connection.IsConnected, wantsPhoneScreen = _connection.WantsPhoneScreen(DateTimeOffset.UtcNow), dismissed = false, phoneScreenEnabled = PhoneScreenEnabled, placedWindow = _placed is not null, phoneDisplay = _phoneDisplay is not null });
-        await PutBackAsync();
-        UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "after-putback", placedWindow = _placed is not null, putBackStatus = ActivityStatus, putBackSucceeded = ActivityStatus == "窗口已还原" });
-        if (_placed is not null)
+        try
         {
-            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "blocked-window-restore", placedWindow = true });
-            ActivityStatus = "窗口尚未恢复，保留手机屏以便重试";
-            _endingSession = false;
-            return;
+            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "begin", connected = _connection.IsConnected, wantsPhoneScreen = _connection.WantsPhoneScreen(DateTimeOffset.UtcNow), dismissed = false, phoneScreenEnabled = PhoneScreenEnabled, placedWindow = _placed is not null, phoneDisplay = _phoneDisplay is not null });
+            await PutBackAsync();
+            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "after-putback", placedWindow = _placed is not null, putBackStatus = ActivityStatus, putBackSucceeded = ActivityStatus == "窗口已还原" });
+            if (HasPlacedWindow)
+            {
+                UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "blocked-window-restore", placedWindow = true });
+                ActivityStatus = "窗口尚未恢复，保留手机屏以便重试";
+                return;
+            }
+
+            _gestureHook.Stop();
+            _gestureHook.SetRegion(null);
+            _notchGuard?.Close();
+            _notchGuard = null;
+            _homeBar?.Close();
+            _homeBar = null;
+            _zoomRail?.Close();
+            _zoomRail = null;
+            _appBackBar?.Close();
+            _appBackBar = null;
+            _phoneSurface?.Close();
+            _phoneSurface = null;
+            _phoneDisplay = null;
+            _activeDisplayPhoneChoice = null;
+            _activeDisplayInsetPoints = null;
+            _activeDisplayPreferredBaseWidth = null;
+            _previewOpen = false;
+
+            if (_driver.IsManagedBySnug)
+            {
+                _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
+                var stopped = await ChangeOwnedDisplayAsync(false);
+                UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "display-stop", stopped, snugDisplay = _displayEnumerator.FindSnugDisplay() is not null });
+                if (!stopped)
+                    ActivityStatus = "手机屏已退出，系统显示器正在关闭；稍后会自动重试";
+            }
+
+            DisplayStatus = "等待 UU 远程";
+            RefreshDisplays();
         }
-
-        _gestureHook.Stop();
-        _gestureHook.SetRegion(null);
-        _notchGuard?.Close();
-        _notchGuard = null;
-        _homeBar?.Close();
-        _homeBar = null;
-        _zoomRail?.Close();
-        _zoomRail = null;
-        _appBackBar?.Close();
-        _appBackBar = null;
-        _phoneSurface?.Close();
-        _phoneSurface = null;
-        _phoneDisplay = null;
-        _activeDisplayPhoneChoice = null;
-        _activeDisplayInsetPoints = null;
-        _activeDisplayPreferredBaseWidth = null;
-        _previewOpen = false;
-
-        if (_driver.IsManagedBySnug)
+        catch (Exception error)
         {
-            _connection.NoteSelfInducedChange(DateTimeOffset.UtcNow);
-            var stopped = await ChangeOwnedDisplayAsync(false);
-            UuCaptureAcceptanceAudit.Record("EndPhoneSession", new { stage = "display-stop", stopped, snugDisplay = _displayEnumerator.FindSnugDisplay() is not null });
-            if (!stopped)
-                ActivityStatus = "手机屏已退出，系统显示器正在关闭；稍后会自动重试";
+            ActivityStatus = "手机屏退出未完成：" + error.Message;
         }
-
-        DisplayStatus = "等待 UU 远程";
-        _endingSession = false;
-        RefreshDisplays();
+        finally { _endingSession = false; }
     }
 
     private async Task ClearOrphanedDisplayAsync()
@@ -1954,52 +2299,10 @@ public sealed class AppController : INotifyPropertyChanged, IDisposable
             return;
         }
     }
-    private void RecoverInterruptedMove()
-    {
-        var record = _ledger.Load();
-        if (record is null) return;
-        if (!_windowManager.IsAlive(record.Key))
-        {
-            try
-            {
-                _leftBehind.Add(record, DateTimeOffset.UtcNow);
-                _ledger.Clear();
-            }
-            catch (IOException error)
-            {
-                ActivityStatus = "暂时无法保存窗口恢复记录：" + error.Message;
-            }
-            catch (UnauthorizedAccessException error)
-            {
-                ActivityStatus = "暂时无法保存窗口恢复记录：" + error.Message;
-            }
-            return;
-        }
-        if (!_windowManager.IsResponsive(record.Key))
-        {
-            ActivityStatus = "发现未完成的窗口恢复；App 暂时无响应，已保留记录";
-            return;
-        }
-
-        var window = new WindowInfo(record.Key, record.AppName, string.Empty,
-            record.ExecutablePath, false, false);
-        if (record.ZoomSteps != 0)
-        {
-            if (!_windowManager.Zoom(window, -record.ZoomSteps))
-            {
-                ActivityStatus = "发现未完成的字号还原，记录已保留";
-                return;
-            }
-            record = record with { ZoomSteps = 0 };
-            _ledger.Save(record);
-        }
-        if (_windowManager.Restore(record)) _ledger.Clear();
-        else ActivityStatus = "发现未完成的窗口还原，记录已保留";
-    }
-
     private void SaveSettings()
     {
         _settings.PhoneScreenEnabled = _phoneScreenEnabled;
+        _settings.RemoteMode = _remoteMode.ToString();
         _settings.GesturesEnabled = _gesturesEnabled;
         _settings.ZoomSteps = _defaultZoomSteps;
         _settings.AppZoomSteps = new Dictionary<string, int>(_zoomBook.Remembered, StringComparer.OrdinalIgnoreCase);

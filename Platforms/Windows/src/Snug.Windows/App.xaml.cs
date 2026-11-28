@@ -24,7 +24,6 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        try { NativeMethods.SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { }
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 

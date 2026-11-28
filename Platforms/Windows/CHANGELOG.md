@@ -1,3 +1,35 @@
+## 0.3.0 — CrossDesk adaptation candidate
+
+- Add experimental CrossDesk remote mode with pre-created phone display, independent process/log detection, registration status and confirmed disconnect window restoration.
+- Route CrossDesk absolute touch input through the shared gesture core. The input marker matches CrossDesk `kInjectedMouseInputMarker` (`0x4353444D`); native controls and UU input remain separate.
+- Add optional UU model matching and five generic portrait presets. Preserve the extension-free zoom, existing driver ownership and window layout safeguards.
+- Polish the provider selector contrast; hide UU-only model matching and viewport controls in CrossDesk mode, and update the connection badge immediately when switching providers.
+- Verification update: 428/428 core tests pass, including cursor/finger classification, move-only slides, pause/release, landing jumps, taps and long-press timing. Release build: 0 warnings / 0 errors.\r\n- CrossDesk 1.7.7 Windows and Android packages are installed for acceptance. The Android privacy-consent gate, real mobile session, LAN firewall rule, live touch replay and UU regression remain pending; do not publish as a stable release yet.
+
+## 0.2.54 — native-only context zoom (candidate, 2026-11-27)
+
+- Remove the browser extension, Native Messaging relay and packaging dependencies. Chrome/Edge use Windows UI Automation only to identify the selected tab, never to infer its percentage.
+- Use neutral-centred relative zoom gestures with native shortcuts; reset uses the browser's configured default. Recheck selected tab and foreground window before each step. Never replay or display a previous tab's absolute percentage.
+- Preserve the phone safe areas, layout reconciliation and full-track touch controls. Upgrading from 0.2.53 removes its obsolete bundled companion files.
+
+- Verification: 398 core tests passed; Chrome and Edge with extensions disabled independently verified A=200%, B=100%, rejected stale A gestures, adjusted B=110%, preserved A, and restored A to its native default. Both browsers passed after dismissing an isolated Edge update dialog. Installer built without the companion. iPhone UU acceptance remains pending.
+
+## 0.2.53 — context-aware zoom (candidate, 2026-11-27)
+
+- Real Chrome 158 test reproduced stale native UIA zoom tooltip: tab A had 200%, tab B's independently measured page pixel ratio was 100%, but UIA reported 200% on B. UIA is no longer used as a zoom-value source.
+- Add optional Chrome/Edge companion (BrowserZoomExtension) using native tabs.getZoom/setZoom APIs and exact active tab/window IDs. A same-user Windows named pipe and small Native Messaging host relay messages; no web-content permission, URL/title collection, profile access or network listener.
+- Track the current browser window/profile/tab and placement session; reject stale drag targets, read external shortcut changes, and display only actual API-confirmed percentages. Reset preserves the browser's configured default and native same-site zoom behavior.
+- Without the companion, use native selected-tab identity only for relative zoom. Unobservable desktop apps use relative gestures, not an inherited absolute value. Manual gestures remain native app changes and are not recorded/replayed across other windows or unknown panes. Explicit temporary default zoom remains for existing classified recovery scopes only.
+- Preserve full-track touch dragging, auto-collapse and all 0.2.52 phone geometry/recovery changes.
+- Candidate verification: 407 core tests, 7 extension API mock tests, 7 real host/pipe transport checks. Real Chrome/Edge companion installation and iPhone UU acceptance are still pending. Main/public release remain 0.2.51.
+## 0.2.52 — physical layout reconciliation (candidate, 2026-11-27)
+
+- Fix stale phone display geometry after a native mode reset or DPI change. Accept a mode only when the physical rectangle matches the requested native resolution exactly.
+- Reconcile the existing display, managed application, phone catalog, notch guard, bottom bar, zoom rail, screenshot controls and gestures together. Serialize and deduplicate automatic reconciliation.
+- Validate the actual window rectangle after fitting and same-session re-entry; attempt normal restoration and return to the catalog when the fit fails.
+- Retry outstanding startup restore records through the existing restoration path before starting another phone session, preserving the ledger on failures. Ensure end-session failures release their transition guard.
+- Preserve existing content zoom interactions, preferences, virtual-display driver and UU session policy.
+- 15 new core regression cases for stale 1640x3170 layout on 1080x2088 mode, logical versus physical dimensions, DPI/origin changes, fit boundaries, same-mode app drift, and reuse of a valid native mode. Real iPhone/UU acceptance remains pending; 0.2.51 remains the public release.
 ## 0.2.51 — iPhone notch safe area and app-switch taskbar recovery (release, 2026-11-26)
 
 - Real iPhone 13 Pro reproduction: Chrome was placed at raw Y=0 on a 1640x3170 Snug VDD, covering the notch region. The secondary Windows taskbar can also overtake the HomeBar after switching applications.

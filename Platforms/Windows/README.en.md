@@ -9,6 +9,14 @@ Version 0.2.48 adds a bottom UU phone-safe area, a Chrome/Edge left-side zoom ra
 **0.2.51:** Adds an iPhone 13 Pro notch top safe area, repositions windows and the bottom HomeBar after app switches, and extends the left-edge zoom rail to more supported apps. For immediate release after UU disconnect, turn Phone Screen OFF.
 
 
+## 0.3.0 candidate · CrossDesk and extension-free zoom
+
+- One phone workspace supports UU Remote and CrossDesk. In CrossDesk mode, Windows runs the host and Android runs the controller.
+- CrossDesk absolute touch input enters the shared gesture core through its dedicated input marker for taps, swipes, long press and scrolling.
+- Chrome / Edge use native Windows tab identification and relative zoom; no browser extension or Native Messaging is required.
+- Optional single-phone UU model matching (off by default) and five generic aspect presets.
+
+[0.3.0 illustrated guide and architecture](../../docs/0.3.0/README.en.md). Candidate only: 428 core tests pass; real CrossDesk mobile connection and UU regression are still in acceptance.
 ## Installation and usage
 
 1. Install UU Remote and the Snug Windows x64 installer on the controlled computer. First installation requests administrator approval to deploy the signed virtual display driver and register the SYSTEM-level UU capture monitor startup task.

@@ -26,7 +26,8 @@
                 </StackPanel>
             </StackPanel>
             <Border DockPanel.Dock="Right" Background="#17243A" BorderBrush="#2B3C59"
-                    BorderThickness="1" CornerRadius="12" Padding="11,8" VerticalAlignment="Center">
+                    BorderThickness="1" CornerRadius="12" Padding="11,8" VerticalAlignment="Center"
+                    ToolTip="{Binding ConnectionDiagnostics}">
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="7" Height="7" Fill="#7D95FF" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="{Binding ConnectionStatus}" FontSize="11" Foreground="#D8E0F2"
@@ -52,13 +53,22 @@
                     <DockPanel>
                         <StackPanel>
                             <TextBlock Text="手机屏" FontSize="14" FontWeight="SemiBold"/>
-                            <TextBlock Text="连接 UU 后自动创建" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding RemoteModeDescription}" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
                         </StackPanel>
                         <ToggleButton Style="{StaticResource SwitchStyle}"
                                       IsChecked="{Binding PhoneScreenEnabled, Mode=TwoWay}"
                                       VerticalAlignment="Center"/>
                     </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
+                    <DockPanel LastChildFill="False" Margin="0,0,0,16">
+                        <TextBlock Text="远控软件" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <ComboBox DockPanel.Dock="Right" Width="165" Height="34" SelectedValuePath="Tag"
+                                  SelectedValue="{Binding RemoteModeChoice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  AutomationProperties.Name="远控软件">
+                            <ComboBoxItem Tag="Uu"><TextBlock Text="UU 远程" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem Tag="CrossDesk"><TextBlock Text="CrossDesk（测试）" Foreground="#1C2A39"/></ComboBoxItem>
+                        </ComboBox>
+                    </DockPanel>
                     <DockPanel LastChildFill="False">
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="手机型号" FontSize="14" FontWeight="SemiBold"/>
@@ -67,7 +77,30 @@
                         <Button DockPanel.Dock="Right" Content="更改" Click="PhoneModel_Click"
                                 VerticalAlignment="Center" Padding="14,8"/>
                     </DockPanel>
+                    <CheckBox Content="自动匹配 UU 手机型号" IsChecked="{Binding AutoMatchPhoneModel, Mode=TwoWay}"
+                              Margin="0,10,0,14" ToolTip="仅在控制端型号明确时匹配；下次连接生效">
+                        <CheckBox.Style>
+                            <Style TargetType="CheckBox">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RemoteModeChoice}" Value="CrossDesk">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </CheckBox.Style>
+                    </CheckBox>
                     <DockPanel LastChildFill="False">
+                        <DockPanel.Style>
+                            <Style TargetType="DockPanel">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RemoteModeChoice}" Value="CrossDesk">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DockPanel.Style>
                         <TextBlock Text="UU 画面比例" FontSize="14" FontWeight="SemiBold"
                                    VerticalAlignment="Center"/>
                         <ComboBox DockPanel.Dock="Right" Width="165" Height="34"
@@ -75,9 +108,9 @@
                                   SelectedValue="{Binding UuViewportMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   ToolTip="适配新版 UU 手机工具栏和防遮挡区域；下次连接生效"
                                   AutomationProperties.Name="UU 手机画面比例">
-                            <ComboBoxItem Content="标准（旧版）" Tag="Classic"/>
-                            <ComboBoxItem Content="扩展画面" Tag="Expanded"/>
-                            <ComboBoxItem Content="全面屏" Tag="Full"/>
+                            <ComboBoxItem Tag="Classic"><TextBlock Text="标准（旧版）" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem Tag="Expanded"><TextBlock Text="扩展画面" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem Tag="Full"><TextBlock Text="全面屏" Foreground="#1C2A39"/></ComboBoxItem>
                         </ComboBox>
                     </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>
@@ -88,10 +121,10 @@
                                   SelectedIndex="{Binding BaseWidthOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                   AutomationProperties.Name="手机屏内容密度"
                                   ToolTip="保持画面比例，调整下次连接时的初始逻辑宽度">
-                            <ComboBoxItem Content="默认"/>
-                            <ComboBoxItem Content="600 · 更多内容"/>
-                            <ComboBoxItem Content="720 · 高密度"/>
-                            <ComboBoxItem Content="840 · 极高密度"/>
+                            <ComboBoxItem><TextBlock Text="默认" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem><TextBlock Text="600 · 更多内容" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem><TextBlock Text="720 · 高密度" Foreground="#1C2A39"/></ComboBoxItem>
+                            <ComboBoxItem><TextBlock Text="840 · 极高密度" Foreground="#1C2A39"/></ComboBoxItem>
                         </ComboBox>
                     </DockPanel>
                     <Separator Margin="0,17" Background="#263650" Height="1"/>

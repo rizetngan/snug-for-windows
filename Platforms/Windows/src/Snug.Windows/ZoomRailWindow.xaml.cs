@@ -35,11 +35,12 @@ public partial class ZoomRailWindow : Window
     private int _minimum = 0;
     private int _maximum = BrowserZoomLevels.Percents.Length - 1;
     private int _selectedValue = BrowserZoomLevels.DefaultIndex;
-    private int _committedValue = BrowserZoomLevels.DefaultIndex;
+    private ZoomTarget? _displayedTarget;
+    private ZoomTarget? _dragTarget;
+    private bool _commitPending;
     private bool _expanded;
     private bool _dragging;
     private bool _lastButtonDown;
-    private bool _known;
     private double? _dragProgress;
     private double? _swipeStartX;
     private TouchDevice? _capturedTouchDevice;
@@ -78,56 +79,66 @@ public partial class ZoomRailWindow : Window
         if (IsLoaded) ApplyPlacement();
     }
 
-    public void SetBrowserLevel(int? level)
+    public void SetBrowserState(WindowKey window, DateTimeOffset session, BrowserZoomObservation? observation)
     {
+        var target = observation is null ? null :
+            new ZoomTarget(window, session, observation.TabIdentity, true);
+        if (_dragging && _dragTarget?.SameScope(target) != true) CancelDrag();
         _mode = ZoomMode.Browser;
         _minimum = 0;
         _maximum = BrowserZoomLevels.Percents.Length - 1;
-        _known = level.HasValue;
-        _selectedValue = BrowserZoomLevels.ClampIndex(
-            level ?? BrowserZoomLevels.DefaultIndex);
-        _committedValue = _selectedValue;
-        ApplyTrackState();
+        _displayedTarget = target;
+        if (!_dragging) ResetTrackFromObservation();
     }
 
-    public void SetAppLevel(int level)
+    public void SetAppRelative(WindowKey window, DateTimeOffset session)
     {
+        var target = new ZoomTarget(window, session, null, false);
+        if (_dragging && _dragTarget?.SameScope(target) != true) CancelDrag();
         _mode = ZoomMode.Application;
         _minimum = ZoomBook.MinimumSteps;
-        _maximum = ZoomBook.MaximumSteps;
-        _known = true;
-        _selectedValue = Math.Clamp(level, _minimum, _maximum);
-        _committedValue = _selectedValue;
-        ApplyTrackState();
+        _maximum = -ZoomBook.MinimumSteps; // Relative gestures have a neutral centre.
+        _displayedTarget = target;
+        if (!_dragging) ResetTrackFromObservation();
     }
 
-    private void ApplyTrackState()
+    private void ResetTrackFromObservation()
     {
+        _selectedValue = _mode == ZoomMode.Browser ? BrowserZoomLevels.DefaultIndex : 0;
         RefreshText();
         UpdateTrackVisual();
     }
+
+    private static string RelativeLabel(int delta) => delta == 0 ? "缩放" : $"{delta:+#;-#;0} 级";
 
     private void RefreshText()
     {
         if (_mode == ZoomMode.Browser)
         {
-            var percent = BrowserZoomLevels.PercentAt(_selectedValue);
-            LargeValue.Text = $"{percent}%";
-            CompactValue.Text = _known ? $"{percent}%" : "缩放";
-            ResetLabel.Text = "100%";
-            ResetButton.ToolTip = "重置到 100%";
+            ExpandButton.ToolTip = "相对调整当前标签页缩放";
+            LargeValue.Text = _dragging
+                ? RelativeLabel(BrowserZoomLevels.StepsFromDefault(_selectedValue))
+                : "缩放";
+            CompactValue.Text = "缩放";
+            ResetLabel.Text = "默认";
+            ResetButton.Visibility = Visibility.Visible;
+            ResetButton.IsEnabled = _displayedTarget is not null && !_commitPending;
+            ResetButton.ToolTip = "恢复浏览器默认缩放";
             return;
         }
+        ExpandButton.ToolTip = "相对调整当前应用缩放";
+        LargeValue.Text = _dragging ? RelativeLabel(_selectedValue) : "缩放";
+        CompactValue.Text = "缩放";
+        ResetButton.Visibility = Visibility.Collapsed;
+    }
 
-        var label = _selectedValue == 0
-            ? "默认"
-            : $"{_selectedValue:+#;-#;0} 级";
-        LargeValue.Text = label;
-        CompactValue.Text = _selectedValue == 0
-            ? "缩放"
-            : $"{_selectedValue:+#;-#;0}";
-        ResetLabel.Text = "默认";
-        ResetButton.ToolTip = "重置应用缩放级别";
+    private bool BeginGesture()
+    {
+        if (_commitPending || _controller.GetCurrentZoomTarget() is not { } target ||
+            _displayedTarget?.SameScope(target) != true) return false;
+        _dragTarget = target;
+        _dragging = true;
+        return true;
     }
 
     private void Touch() => _lastInteraction = DateTimeOffset.UtcNow;
@@ -136,6 +147,7 @@ public partial class ZoomRailWindow : Window
     {
         if (_expanded) { Collapse(); return; }
         _expanded = true;
+        _controller.RefreshBrowserZoom(force: true);
         CompactBody.Visibility = Visibility.Collapsed;
         ExpandedBody.Visibility = Visibility.Visible;
         _lastButtonDown = (GetAsyncKeyState(0x01) & 0x8000) != 0;
@@ -208,44 +220,45 @@ public partial class ZoomRailWindow : Window
         Touch();
     }
 
-    private void CommitSelected()
+    private async void CommitSelected(ZoomTarget? target, int value, bool reset = false)
     {
-        if (_targetDisplay is null || !IsVisible) return;
-        var applied = _mode == ZoomMode.Browser
-            ? _controller.SetCurrentBrowserZoomIndex(_selectedValue)
-            : _controller.SetCurrentAppZoomSteps(_selectedValue);
-        if (applied)
+        if (_targetDisplay is null || !IsVisible || _commitPending || target is null)
         {
-            _committedValue = _selectedValue;
+            ResetTrackFromObservation();
+            return;
         }
-        else
+        _commitPending = true;
+        RefreshText();
+        try
         {
-            _selectedValue = _committedValue;
-            RefreshText();
-            UpdateTrackVisual();
+            await _controller.ApplyZoomGestureAsync(target, value, reset);
         }
-        Touch();
+        finally
+        {
+            _commitPending = false;
+            if (!_dragging) ResetTrackFromObservation();
+            Touch();
+        }
     }
 
     private void FinishDrag()
     {
         if (!_dragging) return;
-        _dragging = false;
-        _dragProgress = null;
-        UpdateTrackVisual();
-        if (Mouse.Captured == TrackInputSurface) Mouse.Capture(null);
-        _capturedTouchDevice?.Capture(null);
-        _capturedTouchDevice = null;
-        CommitSelected();
+        var target = _dragTarget;
+        var value = _selectedValue;
+        CancelDrag();
+        CommitSelected(target, value);
     }
 
     private void CancelDrag()
     {
         _dragging = false;
+        _dragTarget = null;
         _dragProgress = null;
         if (Mouse.Captured == TrackInputSurface) Mouse.Capture(null);
         _capturedTouchDevice?.Capture(null);
         _capturedTouchDevice = null;
+        ResetTrackFromObservation();
     }
 
     private void Expand_Click(object sender, RoutedEventArgs e) => Expand();
@@ -253,12 +266,8 @@ public partial class ZoomRailWindow : Window
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
-        _selectedValue = _mode == ZoomMode.Browser
-            ? BrowserZoomLevels.DefaultIndex
-            : 0;
-        RefreshText();
-        UpdateTrackVisual();
-        CommitSelected();
+        if (_mode != ZoomMode.Browser || _commitPending) return;
+        CommitSelected(_controller.GetCurrentZoomTarget(), BrowserZoomLevels.DefaultIndex, reset: true);
     }
 
     private void TrackHitArea_SizeChanged(
@@ -296,11 +305,11 @@ public partial class ZoomRailWindow : Window
     {
         if (e.ChangedButton != MouseButton.Left || !_expanded) return;
 
+        if (!BeginGesture()) return;
         _swipeStartX = e.GetPosition(this).X;
-        _dragging = true;
         if (!Mouse.Capture(TrackInputSurface, CaptureMode.SubTree))
         {
-            _dragging = false;
+            CancelDrag();
             return;
         }
 
@@ -331,15 +340,14 @@ public partial class ZoomRailWindow : Window
     {
         if (!_expanded) return;
 
+        if (!BeginGesture()) return;
         _swipeStartX = e.GetTouchPoint(this).Position.X;
         _capturedTouchDevice = e.TouchDevice;
         if (!e.TouchDevice.Capture(TrackInputSurface))
         {
-            _capturedTouchDevice = null;
+            CancelDrag();
             return;
         }
-
-        _dragging = true;
         UpdateFromTrack(e.GetTouchPoint(TrackHitArea).Position);
         e.Handled = true;
     }

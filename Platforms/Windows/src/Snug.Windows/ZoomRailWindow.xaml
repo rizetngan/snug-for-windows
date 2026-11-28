@@ -36,7 +36,7 @@
                         Foreground="#F7F8FA"
                         AutomationProperties.Name="收起缩放控件">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock x:Name="LargeValue" Text="100%"
+                        <TextBlock x:Name="LargeValue" Text="缩放"
                                    VerticalAlignment="Center"/>
                         <TextBlock Text=" ‹" FontSize="21"
                                    VerticalAlignment="Center" Foreground="#AEB6C9"/>
@@ -45,7 +45,7 @@
 
                 <Grid x:Name="TrackHitArea" Grid.Row="1" Background="Transparent"
                       Margin="0,5" SizeChanged="TrackHitArea_SizeChanged"
-                      AutomationProperties.Name="上下滑动调整缩放倍率">
+                      AutomationProperties.Name="上下滑动调整缩放">
                     <Canvas x:Name="TrackCanvas" IsHitTestVisible="False"
                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                         <Border x:Name="TrackBase" Width="8"
@@ -77,7 +77,7 @@
                         Foreground="#B9C4D6" BorderThickness="0"
                         Background="Transparent"
                         AutomationProperties.Name="重置缩放倍率">
-                    <TextBlock x:Name="ResetLabel" Text="100%"/>
+                    <TextBlock x:Name="ResetLabel" Text="默认"/>
                 </Button>
             </Grid>
         </Border>
